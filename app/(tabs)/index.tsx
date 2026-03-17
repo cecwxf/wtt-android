@@ -117,6 +117,15 @@ export default function ChatsScreen() {
           </View>
         }
       />
+
+      {/* FAB — Claim Agent */}
+      <TouchableOpacity
+        className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-primary items-center justify-center shadow-lg"
+        onPress={() => router.push('/agent/claim')}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="add" size={28} color="#FFFFFF" />
+      </TouchableOpacity>
     </View>
   );
 }

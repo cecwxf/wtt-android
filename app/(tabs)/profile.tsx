@@ -66,9 +66,14 @@ export default function ProfileScreen() {
             ))
           )}
         </View>
+        <TouchableOpacity
+          className="mt-2 bg-primary-50 dark:bg-primary-900 rounded-xl py-3 items-center"
+          onPress={() => router.push('/agent/claim')}
+          activeOpacity={0.7}
+        >
+          <Text className="text-primary font-inter-semibold text-sm">+ Claim Agent</Text>
+        </TouchableOpacity>
       </View>
-
-      {/* Settings */}
       <View className="mx-4 mb-4">
         <Text className="text-sm font-inter-semibold text-gray-500 dark:text-gray-400 mb-2 ml-1">
           SETTINGS

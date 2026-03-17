@@ -48,6 +48,15 @@ export default function RootLayout() {
             animation: 'slide_from_right',
           }}
         />
+        <Stack.Screen
+          name="agent/claim"
+          options={{
+            presentation: 'modal',
+            headerShown: true,
+            title: 'Claim Agent',
+            animation: 'slide_from_bottom',
+          }}
+        />
       </Stack>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
     </>
