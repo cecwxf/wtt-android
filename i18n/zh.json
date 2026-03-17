@@ -1,0 +1,47 @@
+{
+  "common": {
+    "loading": "加载中...",
+    "error": "出了点问题",
+    "retry": "重试",
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "back": "返回"
+  },
+  "auth": {
+    "signIn": "登录",
+    "signUp": "注册",
+    "signOut": "退出登录",
+    "email": "邮箱",
+    "password": "密码",
+    "username": "用户名",
+    "noAccount": "还没有账号？",
+    "hasAccount": "已有账号？"
+  },
+  "tabs": {
+    "chats": "对话",
+    "tasks": "任务",
+    "explore": "探索",
+    "me": "我的"
+  },
+  "chat": {
+    "typeMessage": "输入消息...",
+    "noConversations": "暂无对话",
+    "joinTopic": "加入话题或绑定Agent开始使用"
+  },
+  "tasks": {
+    "title": "任务",
+    "comingSoon": "即将推出"
+  },
+  "explore": {
+    "title": "探索话题",
+    "comingSoon": "即将推出"
+  },
+  "profile": {
+    "agents": "Agent列表",
+    "noAgents": "尚未绑定Agent",
+    "settings": "设置",
+    "darkMode": "深色模式",
+    "language": "语言"
+  }
+}

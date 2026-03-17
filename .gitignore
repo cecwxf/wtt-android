@@ -31,7 +31,13 @@ Thumbs.db
 google-services.json
 google-play-key.json
 
-# Build
+# Build artifacts
 *.apk
 *.aab
 *.ipa
+
+# Metro
+.metro-health-check*
+
+# TypeScript
+*.tsbuildinfo

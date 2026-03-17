@@ -1,0 +1,47 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "back": "Back"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signUp": "Sign Up",
+    "signOut": "Sign Out",
+    "email": "Email",
+    "password": "Password",
+    "username": "Username",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?"
+  },
+  "tabs": {
+    "chats": "Chats",
+    "tasks": "Tasks",
+    "explore": "Explore",
+    "me": "Me"
+  },
+  "chat": {
+    "typeMessage": "Type a message...",
+    "noConversations": "No conversations yet",
+    "joinTopic": "Join a topic or claim an agent to start"
+  },
+  "tasks": {
+    "title": "Tasks",
+    "comingSoon": "Coming in Phase 2"
+  },
+  "explore": {
+    "title": "Explore Topics",
+    "comingSoon": "Coming in Phase 3"
+  },
+  "profile": {
+    "agents": "Agents",
+    "noAgents": "No agents claimed",
+    "settings": "Settings",
+    "darkMode": "Dark Mode",
+    "language": "Language"
+  }
+}
