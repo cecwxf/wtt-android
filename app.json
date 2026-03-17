@@ -32,7 +32,13 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow WTT to access your photos to share images in chats."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

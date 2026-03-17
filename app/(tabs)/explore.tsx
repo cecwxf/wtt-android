@@ -1,12 +1,299 @@
-import { View, Text } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  ScrollView,
+  RefreshControl,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuthStore } from '@/stores/auth';
+import { useAgentsStore } from '@/stores/agents';
+import { useTopicsStore } from '@/stores/topics';
+import type { Topic } from '@/lib/api/wtt-client';
+
+const TOPIC_TYPES = ['all', 'broadcast', 'discussion', 'p2p', 'collaborative'] as const;
+type TopicTypeFilter = (typeof TOPIC_TYPES)[number];
+
+const TYPE_BADGE_STYLES: Record<string, { bg: string; text: string }> = {
+  broadcast: { bg: 'bg-blue-100', text: 'text-blue-700' },
+  discussion: { bg: 'bg-green-100', text: 'text-green-700' },
+  p2p: { bg: 'bg-purple-100', text: 'text-purple-700' },
+  collaborative: { bg: 'bg-amber-100', text: 'text-amber-700' },
+};
 
 export default function ExploreScreen() {
+  const token = useAuthStore((s) => s.token);
+  const selectedAgentId = useAgentsStore((s) => s.selectedAgentId);
+
+  const {
+    topics,
+    searchResults,
+    subscribedTopics,
+    isLoading,
+    isSearching,
+    fetchTopics,
+    searchTopics,
+    clearSearch,
+    fetchSubscribedTopics,
+    joinTopic,
+    leaveTopic,
+  } = useTopicsStore();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState<TopicTypeFilter>('all');
+  const [refreshing, setRefreshing] = useState(false);
+  const [joiningTopicId, setJoiningTopicId] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Initial data load
+  useEffect(() => {
+    if (token) {
+      fetchTopics(token);
+      if (selectedAgentId) fetchSubscribedTopics(token, selectedAgentId);
+    }
+  }, [token, selectedAgentId]);
+
+  // Debounced search
+  const handleSearchChange = useCallback(
+    (text: string) => {
+      setSearchQuery(text);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (!text.trim()) {
+        clearSearch();
+        return;
+      }
+      debounceRef.current = setTimeout(() => {
+        if (token) searchTopics(token, text.trim());
+      }, 300);
+    },
+    [token, searchTopics, clearSearch],
+  );
+
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery('');
+    clearSearch();
+  }, [clearSearch]);
+
+  // Pull-to-refresh
+  const handleRefresh = useCallback(async () => {
+    if (!token) return;
+    setRefreshing(true);
+    await fetchTopics(token);
+    if (selectedAgentId) await fetchSubscribedTopics(token, selectedAgentId);
+    setRefreshing(false);
+  }, [token, selectedAgentId, fetchTopics, fetchSubscribedTopics]);
+
+  // Subscribe / unsubscribe
+  const handleToggleSubscription = useCallback(
+    async (topic: Topic) => {
+      if (!token || !selectedAgentId) {
+        Alert.alert('Error', 'Please select an agent first.');
+        return;
+      }
+      setJoiningTopicId(topic.id);
+      try {
+        const isSubscribed = subscribedTopics.some((t) => t.id === topic.id);
+        if (isSubscribed) {
+          await leaveTopic(token, topic.id, selectedAgentId);
+        } else {
+          await joinTopic(token, topic.id, selectedAgentId);
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Operation failed';
+        Alert.alert('Error', message);
+      } finally {
+        setJoiningTopicId(null);
+      }
+    },
+    [token, selectedAgentId, subscribedTopics, joinTopic, leaveTopic],
+  );
+
+  // Subscribed topic IDs set for fast lookup
+  const subscribedIds = useMemo(
+    () => new Set(subscribedTopics.map((t) => t.id)),
+    [subscribedTopics],
+  );
+
+  // Filtered list
+  const displayedTopics = useMemo(() => {
+    const source = searchResults ?? topics;
+    if (activeFilter === 'all') return source;
+    return source.filter((t) => t.type === activeFilter);
+  }, [topics, searchResults, activeFilter]);
+
+  const renderTopicCard = useCallback(
+    ({ item }: { item: Topic }) => {
+      const badge = TYPE_BADGE_STYLES[item.type] || TYPE_BADGE_STYLES.discussion;
+      const isSubscribed = subscribedIds.has(item.id);
+      const isJoining = joiningTopicId === item.id;
+
+      return (
+        <View className="bg-white dark:bg-zinc-800 rounded-xl p-4 mx-4 mb-3 shadow-sm">
+          {/* Header row */}
+          <View className="flex-row items-center justify-between mb-1">
+            <Text
+              className="text-base font-inter-semibold text-gray-900 dark:text-gray-100 flex-1 mr-2"
+              numberOfLines={1}
+            >
+              {item.name}
+            </Text>
+            <View className={`${badge.bg} rounded-full px-2 py-0.5`}>
+              <Text className={`${badge.text} text-xs font-inter`}>{item.type}</Text>
+            </View>
+          </View>
+
+          {/* Description */}
+          {!!item.description && (
+            <Text
+              className="text-sm text-gray-500 dark:text-gray-400 font-inter mt-1"
+              numberOfLines={2}
+            >
+              {item.description}
+            </Text>
+          )}
+
+          {/* Meta row */}
+          <View className="flex-row items-center mt-3">
+            <Ionicons name="people-outline" size={14} color="#9CA3AF" />
+            <Text className="text-xs text-gray-400 font-inter ml-1 mr-3">
+              {item.member_count ?? 0}
+            </Text>
+
+            <View
+              className={`rounded-full px-2 py-0.5 mr-3 ${
+                item.join_method === 'open' ? 'bg-green-100' : 'bg-orange-100'
+              }`}
+            >
+              <Text
+                className={`text-xs font-inter ${
+                  item.join_method === 'open' ? 'text-green-700' : 'text-orange-700'
+                }`}
+              >
+                {item.join_method === 'open' ? 'Open' : 'Invite'}
+              </Text>
+            </View>
+
+            <View className="bg-gray-100 dark:bg-zinc-700 rounded-full px-2 py-0.5">
+              <Text className="text-xs text-gray-500 dark:text-gray-400 font-inter">
+                {item.visibility}
+              </Text>
+            </View>
+
+            {/* Subscribe button */}
+            <TouchableOpacity
+              className={`ml-auto rounded-full px-3 py-1.5 ${
+                isSubscribed ? 'bg-gray-200 dark:bg-zinc-700' : 'bg-indigo-500'
+              }`}
+              onPress={() => handleToggleSubscription(item)}
+              disabled={isJoining}
+              activeOpacity={0.7}
+            >
+              {isJoining ? (
+                <ActivityIndicator size="small" color={isSubscribed ? '#6B7280' : '#fff'} />
+              ) : (
+                <Text
+                  className={`text-xs font-inter-semibold ${
+                    isSubscribed ? 'text-gray-500 dark:text-gray-400' : 'text-white'
+                  }`}
+                >
+                  {isSubscribed ? 'Subscribed ✓' : 'Subscribe'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    },
+    [subscribedIds, joiningTopicId, handleToggleSubscription],
+  );
+
+  const renderEmptyState = useCallback(() => {
+    if (isLoading) return null;
+    return (
+      <View className="flex-1 items-center justify-center mt-20">
+        <Ionicons name="search-outline" size={48} color="#9CA3AF" />
+        <Text className="text-gray-400 font-inter mt-4 text-base">No topics found</Text>
+        <Text className="text-gray-400 font-inter text-sm mt-1">
+          {searchQuery ? 'Try a different search term' : 'Pull down to refresh'}
+        </Text>
+      </View>
+    );
+  }, [isLoading, searchQuery]);
+
   return (
-    <View className="flex-1 items-center justify-center bg-background-light dark:bg-background-dark">
-      <Ionicons name="compass-outline" size={48} color="#94A3B8" />
-      <Text className="text-gray-400 font-inter mt-4 text-base">Explore Topics</Text>
-      <Text className="text-gray-400 font-inter text-sm mt-1">Coming in Phase 3</Text>
+    <View className="flex-1 bg-gray-50 dark:bg-zinc-900">
+      {/* Search bar */}
+      <View className="flex-row items-center bg-white dark:bg-zinc-800 mx-4 mt-3 mb-2 px-3 py-2 rounded-xl">
+        <Ionicons name="search-outline" size={18} color="#9CA3AF" />
+        <TextInput
+          className="flex-1 ml-2 text-sm text-gray-900 dark:text-gray-100 font-inter"
+          placeholder="Search topics..."
+          placeholderTextColor="#9CA3AF"
+          value={searchQuery}
+          onChangeText={handleSearchChange}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {isSearching && <ActivityIndicator size="small" color="#6366F1" />}
+        {!!searchQuery && !isSearching && (
+          <TouchableOpacity onPress={handleClearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Type filter chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8 }}
+        className="mb-1"
+      >
+        {TOPIC_TYPES.map((type) => (
+          <TouchableOpacity
+            key={type}
+            className={`mr-2 rounded-full px-4 py-1.5 ${
+              activeFilter === type ? 'bg-indigo-500' : 'bg-gray-100 dark:bg-zinc-800'
+            }`}
+            onPress={() => setActiveFilter(type)}
+            activeOpacity={0.7}
+          >
+            <Text
+              className={`text-sm font-inter capitalize ${
+                activeFilter === type ? 'text-white' : 'text-gray-600 dark:text-gray-400'
+              }`}
+            >
+              {type === 'all' ? 'All' : type}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {/* Loading state */}
+      {isLoading && topics.length === 0 && (
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#6366F1" />
+        </View>
+      )}
+
+      {/* Topics list */}
+      {(!isLoading || topics.length > 0) && (
+        <FlatList
+          data={displayedTopics}
+          keyExtractor={(item) => item.id}
+          renderItem={renderTopicCard}
+          ListEmptyComponent={renderEmptyState}
+          contentContainerStyle={{ paddingTop: 4, paddingBottom: 24, flexGrow: 1 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#6366F1" />
+          }
+        />
+      )}
     </View>
   );
 }

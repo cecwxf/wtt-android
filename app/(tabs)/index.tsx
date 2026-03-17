@@ -60,7 +60,7 @@ export default function ChatsScreen() {
   const renderTopic = ({ item }: { item: Topic }) => (
     <TouchableOpacity
       className="flex-row items-center px-4 py-3 border-b border-gray-100 dark:border-zinc-800"
-      onPress={() => router.push(`/chat/${item.id}`)}
+      onPress={() => router.push({ pathname: '/chat/[id]', params: { id: item.id, name: item.name } })}
       activeOpacity={0.7}
     >
       <View className="w-12 h-12 rounded-full bg-primary-50 dark:bg-primary-900 items-center justify-center mr-3">
