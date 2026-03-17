@@ -10,11 +10,13 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  Animated,
 } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import * as ImagePicker from 'expo-image-picker';
+import { Audio } from 'expo-av';
 import { useAuthStore } from '@/stores/auth';
 import { useAgentsStore } from '@/stores/agents';
 import { useMessagesStore } from '@/stores/messages';
@@ -70,7 +72,13 @@ export default function ChatScreen() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [audioUri, setAudioUri] = useState<string | null>(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (token && topicId) {
@@ -114,6 +122,81 @@ export default function ChatScreen() {
       setImageUri(result.assets[0].uri);
     }
   }, []);
+
+  const startRecording = useCallback(async () => {
+    try {
+      const perm = await Audio.requestPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Please grant microphone access to record voice messages.');
+        return;
+      }
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+      const { recording: rec } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      setRecording(rec);
+      setRecordingDuration(0);
+      recordingTimer.current = setInterval(() => {
+        setRecordingDuration((d) => d + 1);
+      }, 1000);
+      // Pulse animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.3, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      ).start();
+    } catch (err) {
+      console.error('Failed to start recording', err);
+    }
+  }, [pulseAnim]);
+
+  const stopRecording = useCallback(async () => {
+    if (!recording) return;
+    if (recordingTimer.current) clearInterval(recordingTimer.current);
+    pulseAnim.stopAnimation();
+    pulseAnim.setValue(1);
+    try {
+      await recording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      const uri = recording.getURI();
+      setRecording(null);
+      if (uri) {
+        setAudioUri(uri);
+        // Send as text note with duration info (media upload can be added later)
+        const mins = Math.floor(recordingDuration / 60);
+        const secs = recordingDuration % 60;
+        const durationStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+        Alert.alert(
+          'Voice Recorded',
+          `Duration: ${durationStr}\n\nVoice messages will be sent as audio attachments once media upload is enabled. For now, you can describe the content in text.`,
+          [
+            { text: 'Discard', style: 'cancel', onPress: () => setAudioUri(null) },
+            { text: 'OK' },
+          ]
+        );
+      }
+    } catch (err) {
+      console.error('Failed to stop recording', err);
+      setRecording(null);
+    }
+  }, [recording, recordingDuration, pulseAnim]);
+
+  const cancelRecording = useCallback(async () => {
+    if (!recording) return;
+    if (recordingTimer.current) clearInterval(recordingTimer.current);
+    pulseAnim.stopAnimation();
+    pulseAnim.setValue(1);
+    try {
+      await recording.stopAndUnloadAsync();
+    } catch { /* ignore */ }
+    setRecording(null);
+    setRecordingDuration(0);
+    setAudioUri(null);
+  }, [recording, pulseAnim]);
 
   const headerTitle = useMemo(() => {
     if (topicName) return topicName;
@@ -186,6 +269,12 @@ export default function ChatScreen() {
             onContentSizeChange={() =>
               flatListRef.current?.scrollToEnd({ animated: false })
             }
+            onScroll={(e) => {
+              const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+              const distFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
+              setShowScrollBtn(distFromBottom > 200);
+            }}
+            scrollEventThrottle={100}
             ListEmptyComponent={
               <View className="flex-1 items-center justify-center py-20">
                 <Ionicons name="chatbubble-ellipses-outline" size={40} color="#D1D5DB" />
@@ -193,6 +282,60 @@ export default function ChatScreen() {
               </View>
             }
           />
+        )}
+
+        {/* Scroll to bottom FAB */}
+        {showScrollBtn && !recording && (
+          <TouchableOpacity
+            className="absolute right-4 bottom-20 w-10 h-10 rounded-full bg-white shadow-md items-center justify-center border border-gray-100"
+            onPress={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="chevron-down" size={20} color="#6366F1" />
+          </TouchableOpacity>
+        )}
+
+        {/* Recording overlay */}
+        {recording && (
+          <View className="absolute bottom-16 left-0 right-0 bg-red-500/95 py-4 px-6 flex-row items-center justify-between z-10">
+            <View className="flex-row items-center">
+              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                <View className="w-3 h-3 rounded-full bg-white" />
+              </Animated.View>
+              <Text className="text-white font-bold ml-3 text-base">
+                {Math.floor(recordingDuration / 60)}:{String(recordingDuration % 60).padStart(2, '0')}
+              </Text>
+            </View>
+            <View className="flex-row">
+              <TouchableOpacity
+                className="bg-white/30 rounded-full px-4 py-2 mr-3"
+                onPress={cancelRecording}
+              >
+                <Text className="text-white font-semibold">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="bg-white rounded-full px-4 py-2"
+                onPress={stopRecording}
+              >
+                <Text className="text-red-500 font-bold">Stop</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Audio preview */}
+        {audioUri && !recording && (
+          <View className="px-4 pb-1">
+            <View className="flex-row items-center bg-indigo-50 rounded-lg px-3 py-2">
+              <Ionicons name="musical-note" size={18} color="#6366F1" />
+              <Text className="flex-1 text-sm text-indigo-700 ml-2 font-inter">
+                Voice recording ({recordingDuration}s)
+              </Text>
+              <TouchableOpacity onPress={() => setAudioUri(null)}>
+                <Ionicons name="close-circle" size={20} color="#6366F1" />
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
 
         {/* Image preview */}
@@ -215,8 +358,15 @@ export default function ChatScreen() {
           <TouchableOpacity className="p-2" onPress={handlePickImage}>
             <Ionicons name="image-outline" size={24} color="#64748B" />
           </TouchableOpacity>
-          <TouchableOpacity className="p-2">
-            <Ionicons name="mic-outline" size={24} color="#64748B" />
+          <TouchableOpacity
+            className={`p-2 ${recording ? 'opacity-50' : ''}`}
+            onPress={recording ? stopRecording : startRecording}
+          >
+            <Ionicons
+              name={recording ? 'stop-circle' : 'mic-outline'}
+              size={24}
+              color={recording ? '#EF4444' : '#64748B'}
+            />
           </TouchableOpacity>
           <TextInput
             className="flex-1 bg-gray-100 rounded-2xl px-4 py-2 mx-1 text-base font-inter text-gray-900 max-h-28"

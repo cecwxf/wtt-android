@@ -3,17 +3,20 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuthStore } from '@/stores/auth';
 import { useAgentsStore } from '@/stores/agents';
 import { useWebSocketStore } from '@/stores/websocket';
+import { useThemeStore } from '@/stores/theme';
+import { useI18nStore } from '@/stores/i18n';
 import { WS_BASE_URL } from '@/lib/api/base-url';
 import '../global.css';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const resolved = useThemeStore((s) => s.resolved);
+  const loadTheme = useThemeStore((s) => s.loadMode);
+  const loadLocale = useI18nStore((s) => s.loadLocale);
   const loadToken = useAuthStore((s) => s.loadToken);
   const isLoading = useAuthStore((s) => s.isLoading);
   const token = useAuthStore((s) => s.token);
@@ -30,7 +33,9 @@ export default function RootLayout() {
 
   useEffect(() => {
     loadToken();
-  }, [loadToken]);
+    loadTheme();
+    loadLocale();
+  }, [loadToken, loadTheme, loadLocale]);
 
   // Initialize WebSocket when authenticated with a selected agent
   useEffect(() => {
@@ -84,7 +89,7 @@ export default function RootLayout() {
           }}
         />
       </Stack>
-      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={resolved === 'dark' ? 'light' : 'dark'} />
     </>
   );
 }

@@ -4,6 +4,19 @@ import { router } from 'expo-router';
 import { useAuthStore } from '@/stores/auth';
 import { useAgentsStore } from '@/stores/agents';
 import { useWebSocketStore } from '@/stores/websocket';
+import { useThemeStore } from '@/stores/theme';
+import { useI18nStore } from '@/stores/i18n';
+
+const THEME_OPTIONS = [
+  { value: 'system' as const, label: 'System' },
+  { value: 'light' as const, label: 'Light' },
+  { value: 'dark' as const, label: 'Dark' },
+];
+
+const LANG_OPTIONS = [
+  { value: 'en' as const, label: 'English' },
+  { value: 'zh' as const, label: '中文' },
+];
 
 export default function ProfileScreen() {
   const user = useAuthStore((s) => s.user);
@@ -12,12 +25,17 @@ export default function ProfileScreen() {
   const selectedAgentId = useAgentsStore((s) => s.selectedAgentId);
   const selectAgent = useAgentsStore((s) => s.selectAgent);
   const wsState = useWebSocketStore((s) => s.wsState);
+  const themeMode = useThemeStore((s) => s.mode);
+  const setTheme = useThemeStore((s) => s.setMode);
+  const locale = useI18nStore((s) => s.locale);
+  const setLocale = useI18nStore((s) => s.setLocale);
+  const t = useI18nStore((s) => s.t);
 
   const handleLogout = async () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t.auth.signOut, 'Are you sure you want to sign out?', [
+      { text: t.common.cancel, style: 'cancel' },
       {
-        text: 'Sign Out',
+        text: t.auth.signOut,
         style: 'destructive',
         onPress: async () => {
           await logout();
@@ -31,6 +49,27 @@ export default function ProfileScreen() {
     if (agentId === selectedAgentId) return;
     await selectAgent(agentId);
   };
+
+  const handleThemePick = () => {
+    const buttons = THEME_OPTIONS.map((opt) => ({
+      text: opt.label + (opt.value === themeMode ? ' ✓' : ''),
+      onPress: () => setTheme(opt.value),
+    }));
+    buttons.push({ text: t.common.cancel, onPress: async () => {} });
+    Alert.alert(t.profile.darkMode, '', buttons);
+  };
+
+  const handleLangPick = () => {
+    const buttons = LANG_OPTIONS.map((opt) => ({
+      text: opt.label + (opt.value === locale ? ' ✓' : ''),
+      onPress: () => setLocale(opt.value),
+    }));
+    buttons.push({ text: t.common.cancel, onPress: async () => {} });
+    Alert.alert(t.profile.language, '', buttons);
+  };
+
+  const themeModeLabel = THEME_OPTIONS.find((o) => o.value === themeMode)?.label ?? 'System';
+  const langLabel = LANG_OPTIONS.find((o) => o.value === locale)?.label ?? 'English';
 
   return (
     <ScrollView className="flex-1 bg-gray-50">
@@ -47,7 +86,6 @@ export default function ProfileScreen() {
         <Text className="text-sm text-gray-500 mt-0.5">
           {user?.email || ''}
         </Text>
-        {/* Connection status */}
         <View className="flex-row items-center mt-2">
           <View
             className={`w-2 h-2 rounded-full mr-1.5 ${
@@ -63,12 +101,12 @@ export default function ProfileScreen() {
       {/* Agent Section */}
       <View className="mx-4 mt-4 mb-4">
         <Text className="text-sm font-semibold text-gray-500 mb-2 ml-1">
-          AGENTS
+          {t.profile.agents.toUpperCase()}
         </Text>
         <View className="bg-white rounded-xl overflow-hidden">
           {agents.length === 0 ? (
             <View className="px-4 py-3">
-              <Text className="text-gray-400 text-sm">No agents claimed</Text>
+              <Text className="text-gray-400 text-sm">{t.profile.noAgents}</Text>
             </View>
           ) : (
             agents.map((agent, idx) => (
@@ -118,32 +156,40 @@ export default function ProfileScreen() {
       {/* Settings */}
       <View className="mx-4 mb-4">
         <Text className="text-sm font-semibold text-gray-500 mb-2 ml-1">
-          SETTINGS
+          {t.profile.settings.toUpperCase()}
         </Text>
         <View className="bg-white rounded-xl overflow-hidden">
-          <TouchableOpacity className="flex-row items-center px-4 py-3 border-b border-gray-50">
+          <TouchableOpacity
+            className="flex-row items-center px-4 py-3 border-b border-gray-50"
+            onPress={handleThemePick}
+            activeOpacity={0.7}
+          >
             <Ionicons name="moon-outline" size={20} color="#64748B" />
             <Text className="flex-1 ml-3 text-base text-gray-900">
-              Dark Mode
+              {t.profile.darkMode}
             </Text>
-            <Text className="text-sm text-gray-400">System</Text>
-            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" className="ml-1" />
+            <Text className="text-sm text-gray-400">{themeModeLabel}</Text>
+            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
-          <TouchableOpacity className="flex-row items-center px-4 py-3 border-b border-gray-50">
+          <TouchableOpacity
+            className="flex-row items-center px-4 py-3 border-b border-gray-50"
+            onPress={handleLangPick}
+            activeOpacity={0.7}
+          >
             <Ionicons name="language-outline" size={20} color="#64748B" />
             <Text className="flex-1 ml-3 text-base text-gray-900">
-              Language
+              {t.profile.language}
             </Text>
-            <Text className="text-sm text-gray-400">English</Text>
-            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" className="ml-1" />
+            <Text className="text-sm text-gray-400">{langLabel}</Text>
+            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
-          <TouchableOpacity className="flex-row items-center px-4 py-3">
+          <TouchableOpacity className="flex-row items-center px-4 py-3" activeOpacity={0.7}>
             <Ionicons name="information-circle-outline" size={20} color="#64748B" />
             <Text className="flex-1 ml-3 text-base text-gray-900">
               About
             </Text>
             <Text className="text-sm text-gray-400">v1.0.0</Text>
-            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" className="ml-1" />
+            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
         </View>
       </View>
@@ -155,7 +201,7 @@ export default function ProfileScreen() {
           onPress={handleLogout}
           activeOpacity={0.7}
         >
-          <Text className="text-red-500 font-semibold text-base">Sign Out</Text>
+          <Text className="text-red-500 font-semibold text-base">{t.auth.signOut}</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
