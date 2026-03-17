@@ -18,6 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/stores/auth';
 import { useAgentsStore } from '@/stores/agents';
 import { useMessagesStore } from '@/stores/messages';
+import { useWebSocketStore } from '@/stores/websocket';
 import { formatTime } from '@/lib/time';
 import type { Message } from '@/lib/api/wtt-client';
 
@@ -64,6 +65,7 @@ export default function ChatScreen() {
   const fetchMessages = useMessagesStore((s) => s.fetchMessages);
   const sendMessage = useMessagesStore((s) => s.sendMessage);
   const isLoading = useMessagesStore((s) => s.isLoading);
+  const wsState = useWebSocketStore((s) => s.wsState);
 
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -76,12 +78,13 @@ export default function ChatScreen() {
     }
   }, [token, topicId, fetchMessages]);
 
-  // Auto-refresh messages every 10s
+  // Auto-refresh messages (longer interval when WS is connected)
   useEffect(() => {
     if (!token || !topicId) return;
-    const interval = setInterval(() => fetchMessages(token, topicId), 10000);
+    const ms = wsState === 'connected' ? 30000 : 10000;
+    const interval = setInterval(() => fetchMessages(token, topicId), ms);
     return () => clearInterval(interval);
-  }, [token, topicId, fetchMessages]);
+  }, [token, topicId, fetchMessages, wsState]);
 
   const handleSend = useCallback(async () => {
     if (!text.trim() || !token || !topicId || !agentId || sending) return;

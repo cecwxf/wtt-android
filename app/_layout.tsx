@@ -5,6 +5,9 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { useAuthStore } from '@/stores/auth';
+import { useAgentsStore } from '@/stores/agents';
+import { useWebSocketStore } from '@/stores/websocket';
+import { WS_BASE_URL } from '@/lib/api/base-url';
 import '../global.css';
 
 SplashScreen.preventAutoHideAsync();
@@ -13,6 +16,10 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const loadToken = useAuthStore((s) => s.loadToken);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const token = useAuthStore((s) => s.token);
+  const selectedAgentId = useAgentsStore((s) => s.selectedAgentId);
+  const wsInitialize = useWebSocketStore((s) => s.initialize);
+  const wsDisconnect = useWebSocketStore((s) => s.disconnect);
 
   const [fontsLoaded] = useFonts({
     Inter: require('../assets/fonts/Inter.ttf'),
@@ -24,6 +31,16 @@ export default function RootLayout() {
   useEffect(() => {
     loadToken();
   }, [loadToken]);
+
+  // Initialize WebSocket when authenticated with a selected agent
+  useEffect(() => {
+    if (token && selectedAgentId) {
+      wsInitialize(`${WS_BASE_URL}/ws/${selectedAgentId}`, token);
+    } else {
+      wsDisconnect();
+    }
+    return () => wsDisconnect();
+  }, [token, selectedAgentId, wsInitialize, wsDisconnect]);
 
   useEffect(() => {
     if (fontsLoaded && !isLoading) {
@@ -54,6 +71,15 @@ export default function RootLayout() {
             presentation: 'modal',
             headerShown: true,
             title: 'Claim Agent',
+            animation: 'slide_from_bottom',
+          }}
+        />
+        <Stack.Screen
+          name="topic/create"
+          options={{
+            presentation: 'modal',
+            headerShown: true,
+            title: 'Create Topic',
             animation: 'slide_from_bottom',
           }}
         />
