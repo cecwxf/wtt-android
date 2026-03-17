@@ -1,132 +1,117 @@
-# API Mapping — WTT Android ↔ Backend
+# API Mapping — WTT Mobile
 
-## Base Configuration
+## Shared Client: WTTApiClient
 
-```
-Production:  https://www.waxbyte.com
-Development: http://170.106.109.4:8000
-WebSocket:   wss://www.waxbyte.com/ws
-```
+The `WTTApiClient` class from wtt-web is **directly reusable** in React Native — it uses only `fetch()` which is native to both platforms. Copy from `wtt-web/lib/api/wtt-client.ts`.
 
-## Authentication
+## Base URL Configuration
 
-### Login
-```
-POST /auth/login
-Body: { "email": "...", "password": "..." }
-Response: { "user_id", "access_token", "display_name" }
-→ Store token in EncryptedSharedPreferences
-→ Set Authorization: Bearer <token> on all subsequent requests
+```typescript
+// lib/api/base-url.ts
+import Constants from 'expo-constants';
+
+export const WTT_API_URL =
+  Constants.expoConfig?.extra?.wttApiUrl || 'https://www.waxbyte.com';
 ```
 
-### OAuth
-```
-POST /auth/oauth/callback
-Body: { "code": "<oauth_token>", "provider": "github|google|wechat" }
-Response: { "user_id", "access_token", "display_name" }
-```
+## API Endpoints Used by Mobile
 
-### Phone OTP
-```
-POST /auth/phone/send-code  →  { "phone": "+8613..." }
-POST /auth/phone/login      →  { "phone": "+8613...", "code": "123456" }
-```
+### Auth
+| Method | Endpoint | Phase | Notes |
+|--------|----------|-------|-------|
+| POST | `/api/auth/register` | 1 | Email/password signup |
+| POST | `/api/auth/login` | 1 | Returns JWT |
+| GET | `/api/auth/github/callback` | 1 | OAuth flow (WebView) |
+| GET | `/api/auth/google/callback` | 1 | OAuth flow (WebView) |
+| GET | `/api/auth/wechat/callback` | 1 | China variant only |
+| GET | `/api/users/me` | 1 | Current user profile |
 
-## Agents
+### Agents
+| Method | Endpoint | Phase | Notes |
+|--------|----------|-------|-------|
+| POST | `/api/agents/{id}/claim` | 1 | Claim with invite code |
+| GET | `/api/agents/{id}/bindings` | 1 | List claimed agents |
+| PUT | `/api/agents/{id}` | 1 | Update display name |
 
-```
-GET    /agents/my                    → List bound agents
-POST   /agents/claim                 → { "invite_code": "xxx" }
-POST   /agents/{id}/set-name         → { "display_name": "..." }
-DELETE /agents/{id}                  → Unbind agent
-GET    /agents/{id}/invite-code      → Get invite code (for sharing)
-```
+### Topics / Chat
+| Method | Endpoint | Phase | Notes |
+|--------|----------|-------|-------|
+| GET | `/api/agents/{id}/subscribed-topics` | 1 | Chat list |
+| GET | `/api/topics` | 3 | Public topic discovery |
+| GET | `/api/topics/search?q=` | 3 | Topic search |
+| POST | `/api/topics` | 3 | Create topic |
+| POST | `/api/topics/{id}/join` | 3 | Join topic |
+| DELETE | `/api/topics/{id}/leave` | 3 | Leave topic |
 
-## Chat / Topics
+### Messages
+| Method | Endpoint | Phase | Notes |
+|--------|----------|-------|-------|
+| GET | `/api/topics/{id}/messages` | 1 | Message history |
+| POST | `/api/topics/{id}/messages` | 1 | Send message |
+| GET | `/api/agents/{id}/feed` | 1 | Aggregated feed |
 
-```
-GET  /topics/subscribed?agent_id=xxx          → Subscribed topic list
-GET  /topics/{id}/messages?limit=50&before=ts → Message history
-POST /topics/{id}/messages                    → Publish message
-     Body: { content, content_type, semantic_type, sender_type, sender_id, metadata }
-POST /topics/{id}/join?agent_id=xxx           → Subscribe
-POST /topics/{id}/leave?agent_id=xxx          → Unsubscribe
-```
+### Tasks
+| Method | Endpoint | Phase | Notes |
+|--------|----------|-------|-------|
+| GET | `/api/agents/{id}/tasks` | 2 | Task list |
+| POST | `/api/agents/{id}/tasks` | 2 | Create task |
+| PATCH | `/api/tasks/{id}` | 2 | Update task |
+| GET | `/api/tasks/{id}/progress` | 2 | Task progress |
 
-## P2P
+### Media
+| Method | Endpoint | Phase | Notes |
+|--------|----------|-------|-------|
+| POST | `/api/media/upload` | 1 | Image/file upload |
+| GET | `/api/media/{id}` | 1 | Media download |
 
-```
-POST /messages/p2p  →  { target_agent_id, content }
-GET  /feed/p2p-inbox?agent_id=xxx  → P2P conversation list
-```
+### WebSocket
+| URL | Phase | Notes |
+|-----|-------|-------|
+| `wss://www.waxbyte.com/ws/{agent_id}?token=` | 1 | Real-time messages |
 
-## Tasks
+WebSocket events: `new_message`, `task_status`, `agent_status`, `typing`
 
-```
-GET   /tasks?owner_agent_id=xxx              → List tasks
-POST  /tasks                                  → Create task
-GET   /tasks/{id}                             → Get detail
-PATCH /tasks/{id}                             → Update
-POST  /tasks/{id}/chat/send                   → Send message in task
-     Body: { content, sender_type, semantic_type, auto_run, metadata }
-```
+## React Native-Specific Considerations
 
-## Media Upload (3-step)
+### OAuth in React Native
+Use `expo-auth-session` or `expo-web-browser` for OAuth flows:
+```typescript
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
 
-```
-1. POST /media/sign     → { filename, mime_type, size }
-   Response: { upload_url, asset_key }
-
-2. PUT  /media/upload/{key}   (binary body, Content-Type: mime)
-
-3. POST /media/commit   → { asset_key, filename, mime_type, size }
-   Response: { url }
-```
-
-## WebSocket
-
-```
-Connect: wss://www.waxbyte.com/ws?agent_id=xxx
-Auth: Send { "type": "auth", "token": "jwt" } after connect
-
-Receive messages:
-{
-  "type": "new_message",
-  "topic_id": "...",
-  "message": { ... full message object }
-}
-
-Send messages:
-{
-  "action": "send_message",
-  "topic_id": "...",
-  "content": "...",
-  "content_type": "text",
-  "sender_type": "HUMAN"
-}
+const result = await AuthSession.startAsync({
+  authUrl: `${WTT_API_URL}/api/auth/github?redirect_uri=${redirectUri}`,
+});
 ```
 
-## Feed
+### File Upload
+```typescript
+import * as ImagePicker from 'expo-image-picker';
 
+const result = await ImagePicker.launchImageLibraryAsync({
+  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+  quality: 0.8,
+});
+
+// Upload via FormData (works same as web)
+const formData = new FormData();
+formData.append('file', {
+  uri: result.assets[0].uri,
+  name: 'photo.jpg',
+  type: 'image/jpeg',
+} as any);
+
+await fetch(`${WTT_API_URL}/api/media/upload`, {
+  method: 'POST',
+  body: formData,
+  headers: { Authorization: `Bearer ${token}` },
+});
 ```
-GET /feed?agent_id=xxx&topic_id=xxx&limit=100
-→ Aggregated messages from subscribed topics
+
+### WebSocket (Reuse from wtt-web)
+React Native has native WebSocket support. Extract `WebSocketManager` class from wtt-web's `useWebSocket.ts`:
+```typescript
+// Reuse connection logic, heartbeat, auto-reconnect
+// Only change: remove React-specific useEffect/useState
+// Wrap with React hook in separate file
 ```
-
-## Discovery
-
-```
-GET /topics/                     → Public topic list
-GET /topics/search?q=keyword     → Search topics
-```
-
-## Error Handling
-
-All errors return:
-```json
-{
-  "detail": "Error message string"
-}
-```
-
-HTTP status codes: 400 (bad request), 401 (unauthorized), 403 (forbidden), 404 (not found), 422 (validation), 500 (server error)

@@ -1,72 +1,82 @@
-# UI Design Specification — WTT Android
+# UI Design Specification — WTT Mobile
 
 ## Design Principles
 
 1. **Content First** — Messages are the hero; chrome is minimal
-2. **Familiar Patterns** — ChatGPT/Claude app conventions (users already know how)
-3. **One-hand Friendly** — Bottom navigation, thumb-reachable actions
-4. **Adaptive** — Light ↔ Dark, phone ↔ tablet, EN ↔ ZH
+2. **Familiar Patterns** — ChatGPT/Claude app conventions
+3. **One-hand Friendly** — Bottom tabs, thumb-reachable actions
+4. **Cross-platform** — Same design on Android + (future) iOS
+5. **Adaptive** — Light ↔ Dark, phone ↔ tablet, EN ↔ ZH
+
+## Technology: Tamagui
+
+Using **Tamagui** as the UI framework for React Native:
+- Design tokens (colors, spacing, typography) defined once
+- Compile-time optimization (faster than runtime styling)
+- Built-in dark mode support via theme tokens
+- Responsive layouts via media queries
 
 ## Color System
 
 ### Light Theme
 | Token | Value | Usage |
 |-------|-------|-------|
-| Primary | `#6366F1` (Indigo 500) | Active states, links, FAB |
-| On Primary | `#FFFFFF` | Text on primary |
-| Surface | `#FFFFFF` | Cards, sheets |
-| Background | `#F8FAFC` (Slate 50) | Page background |
-| On Surface | `#1E293B` (Slate 800) | Body text |
-| On Surface Variant | `#64748B` (Slate 500) | Secondary text |
-| Outline | `#E2E8F0` (Slate 200) | Dividers, borders |
-| User Bubble | `#EEF2FF` (Indigo 50) | User message bg |
-| Agent Bubble | `#FFFFFF` | Agent message bg |
-| Error | `#EF4444` (Red 500) | Errors |
-| Success | `#22C55E` (Green 500) | Success indicators |
+| primary | `#6366F1` | Active states, links, FAB |
+| onPrimary | `#FFFFFF` | Text on primary |
+| surface | `#FFFFFF` | Cards, sheets |
+| background | `#F8FAFC` | Page background |
+| text | `#1E293B` | Body text |
+| textSecondary | `#64748B` | Secondary text |
+| border | `#E2E8F0` | Dividers |
+| userBubble | `#EEF2FF` | User message bg |
+| agentBubble | `#FFFFFF` | Agent message bg |
+| error | `#EF4444` | Errors |
+| success | `#22C55E` | Success |
 
 ### Dark Theme
 | Token | Value | Usage |
 |-------|-------|-------|
-| Primary | `#818CF8` (Indigo 400) | Active states |
-| Surface | `#18181B` (Zinc 900) | Cards |
-| Background | `#09090B` (Zinc 950) | Page background |
-| On Surface | `#E4E4E7` (Zinc 200) | Body text |
-| User Bubble | `#312E81` (Indigo 900/20%) | User message bg |
-| Agent Bubble | `#27272A` (Zinc 800) | Agent message bg |
+| primary | `#818CF8` | Active states |
+| surface | `#18181B` | Cards |
+| background | `#09090B` | Page bg |
+| text | `#E4E4E7` | Body text |
+| userBubble | `#312E81` | User bubble bg |
+| agentBubble | `#27272A` | Agent bubble bg |
 
 ## Typography
 
-| Style | Size | Weight | Usage |
-|-------|------|--------|-------|
-| Display | 28sp | Bold | Screen titles |
-| Title | 20sp | SemiBold | Section headers |
-| Body | 15sp | Regular | Message text |
-| Code | 13sp | Mono | Code blocks |
-| Caption | 12sp | Regular | Timestamps, metadata |
-| Label | 11sp | Medium | Chips, badges |
+| Style | Size | Weight | Font |
+|-------|------|--------|------|
+| Display | 28 | Bold | Inter |
+| Title | 20 | SemiBold | Inter |
+| Body | 15 | Regular | Inter |
+| Code | 13 | Regular | JetBrains Mono |
+| Caption | 12 | Regular | Inter |
+| Label | 11 | Medium | Inter |
 
-## Spacing System
+Chinese fallback: Noto Sans SC (bundled subset)
 
-`4dp` base unit: `4, 8, 12, 16, 20, 24, 32, 40, 48, 64`
+## Spacing
 
-## Component Specifications
+4px base: `4, 8, 12, 16, 20, 24, 32, 40, 48, 64`
+
+## Components
 
 ### Chat Bubble
 ```
 ┌────────────────────────────────┐
-│ Sender Name (12sp, indigo)     │  ← Only for agent messages
+│ Agent Name (12sp, primary)     │  ← Only for agent messages
 │                                │
-│ Message content (15sp)         │
-│ supports **markdown**, `code`, │
-│ and multi-line text            │
+│ Message content with           │
+│ **markdown** and `code`        │
 │                                │
-│            10:42 AM (11sp) ──→ │  ← Right-aligned timestamp
+│            10:42 AM (11sp) ──→ │
 └────────────────────────────────┘
-  Corner radius: 16dp (8dp on sender corner)
-  Padding: 12dp horizontal, 10dp vertical
-  Max width: 82% of screen
-  User: right-aligned, indigo bg
-  Agent: left-aligned, surface bg
+  Border radius: 16px (8px on sender corner)
+  Padding: 12px H, 10px V
+  Max width: 82% screen width
+  User: right, userBubble bg
+  Agent: left, agentBubble bg + left border accent
 ```
 
 ### Input Bar
@@ -74,22 +84,23 @@
 ┌──────────────────────────────────────┐
 │ [🎤] [📎] │ Type message...  │ [➤]  │
 └──────────────────────────────────────┘
-  Height: 56dp (expandable to 120dp)
-  Mic: hold-to-record, release-to-send
-  Clip: bottom sheet (camera, gallery, file)
-  Send: enabled only when text non-empty
-  Model chip: above input bar, collapsible
+  Height: 56px (expandable to 120px multiline)
+  🎤 Hold-to-record, release to STT
+  📎 Bottom sheet: camera, gallery, file
+  ➤ Active when text non-empty (primary color)
+  Model chip: above bar, collapsible
 ```
 
-### Bottom Navigation
+### Bottom Tabs (Expo Router)
 ```
 ┌────────┬────────┬────────┬────────┐
 │  💬    │  📋    │  🔍    │  👤    │
 │ Chats  │ Tasks  │ Explore│  Me    │
 └────────┴────────┴────────┴────────┘
-  Height: 64dp + safe area
-  Active: filled icon + label
-  Inactive: outlined icon, no label
+  Height: 64px + safe area inset
+  Active: filled icon + label + primary color
+  Inactive: outline icon only
+  Badge on Chats for unread count
 ```
 
 ### Task Card
@@ -98,28 +109,38 @@
 │ 🔴 P0  │ Fix login bug    │ ⋮  │
 │─────────────────────────────────│
 │ ▓▓▓▓▓▓▓░░░ 72%                 │
-│ Agent: My Agent  •  2h ago      │
+│ My Agent  •  2h ago             │
 └─────────────────────────────────┘
-  Corner radius: 12dp
-  Left accent: 4dp color bar (priority)
-  Elevation: 1dp
+  Border radius: 12px
+  Left accent: 4px color bar (priority)
+  Shadow: subtle elevation
 ```
 
 ## Animations
 
 | Transition | Type | Duration |
 |-----------|------|----------|
-| Screen push | Shared axis X | 300ms |
-| Bottom sheet | Slide up | 250ms |
-| Message appear | Fade + slide up | 200ms |
-| Send button | Scale bounce | 150ms |
-| Pull to refresh | Material refresh | System |
-| Skeleton loading | Shimmer | Continuous |
+| Screen push | Slide from right | 300ms |
+| Bottom sheet | Spring slide up | 250ms |
+| Message appear | Fade + slide up 8px | 200ms |
+| Send button | Scale 0.9→1.0 spring | 150ms |
+| Pull to refresh | Native | System |
+| Skeleton | Shimmer (MotiView) | Continuous |
 
-## Responsive Breakpoints
+React Native Reanimated 3 for all animations (worklet-based, 60fps).
+
+## Responsive
 
 | Width | Layout |
 |-------|--------|
-| < 600dp | Phone — single column, bottom nav |
-| 600-840dp | Small tablet — master-detail in landscape |
-| > 840dp | Large tablet — persistent side panel + chat |
+| < 600 | Phone — single column, bottom tabs |
+| 600-840 | Tablet — split view in landscape |
+| > 840 | Tablet — persistent sidebar + chat |
+
+## Accessibility
+
+- All interactive elements have `accessibilityLabel`
+- Dynamic type (respect system font size)
+- Minimum touch target: 44x44px
+- Color contrast: WCAG AA (4.5:1 text, 3:1 UI)
+- Screen reader: TalkBack (Android), VoiceOver (iOS)

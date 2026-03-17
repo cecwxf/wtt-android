@@ -1,18 +1,37 @@
-*.iml
-.gradle
-/local.properties
-/.idea
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Native builds
+android/
+ios/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
 .DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
-/app/build
-/core/build
-*.apk
-*.aab
+Thumbs.db
+
+# EAS
 *.jks
 *.keystore
 google-services.json
-agconnect-services.json
+google-play-key.json
+
+# Build
+*.apk
+*.aab
+*.ipa
