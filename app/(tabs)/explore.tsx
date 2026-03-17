@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { useAuthStore } from '@/stores/auth';
 import { useAgentsStore } from '@/stores/agents';
 import { useTopicsStore } from '@/stores/topics';
+import { haptic } from '@/lib/haptics';
 import type { Topic } from '@/lib/api/wtt-client';
 
 const TOPIC_TYPES = ['all', 'broadcast', 'discussion', 'p2p', 'collaborative'] as const;
@@ -104,7 +105,9 @@ export default function ExploreScreen() {
         } else {
           await joinTopic(token, topic.id, selectedAgentId);
         }
+        haptic.success();
       } catch (err: unknown) {
+        haptic.error();
         const message = err instanceof Error ? err.message : 'Operation failed';
         Alert.alert('Error', message);
       } finally {

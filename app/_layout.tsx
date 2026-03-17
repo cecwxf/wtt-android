@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useAuthStore } from '@/stores/auth';
 import { useAgentsStore } from '@/stores/agents';
 import { useWebSocketStore } from '@/stores/websocket';
@@ -58,7 +59,7 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <ErrorBoundary>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
@@ -90,6 +91,6 @@ export default function RootLayout() {
         />
       </Stack>
       <StatusBar style={resolved === 'dark' ? 'light' : 'dark'} />
-    </>
+    </ErrorBoundary>
   );
 }

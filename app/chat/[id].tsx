@@ -22,6 +22,7 @@ import { useAgentsStore } from '@/stores/agents';
 import { useMessagesStore } from '@/stores/messages';
 import { useWebSocketStore } from '@/stores/websocket';
 import { formatTime } from '@/lib/time';
+import { haptic } from '@/lib/haptics';
 import type { Message } from '@/lib/api/wtt-client';
 
 const hasMarkdown = (text: string) =>
@@ -102,6 +103,7 @@ export default function ChatScreen() {
     setSending(true);
     try {
       await sendMessage(token, topicId, content, agentId);
+      haptic.light();
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     } catch { /* ignore */ }
     setSending(false);
@@ -137,6 +139,7 @@ export default function ChatScreen() {
       const { recording: rec } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
+      haptic.medium();
       setRecording(rec);
       setRecordingDuration(0);
       recordingTimer.current = setInterval(() => {
