@@ -43,11 +43,9 @@ jobs:
 
       - name: Enable JS bundling in debug build
         run: |
-          # Patch generated build.gradle to embed JS bundle in debug APK
-          cd android/app
-          if grep -q 'react {' build.gradle; then
-            sed -i '/react {/a\    bundleInDebug = true' build.gradle
-          fi
+          # By default, debuggableVariants=["debug"] skips JS bundling.
+          # Set it to empty so the debug APK includes the embedded JS bundle.
+          sed -i 's|react {|react {\n    debuggableVariants = []|' android/app/build.gradle
 
       - name: Build debug APK
         working-directory: android
