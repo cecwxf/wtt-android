@@ -25,7 +25,7 @@ export default function RootLayout() {
   const wsInitialize = useWebSocketStore((s) => s.initialize);
   const wsDisconnect = useWebSocketStore((s) => s.disconnect);
 
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Inter: require('../assets/fonts/Inter.ttf'),
     'Inter-Bold': require('../assets/fonts/Inter-Bold.ttf'),
     'Inter-SemiBold': require('../assets/fonts/Inter-SemiBold.ttf'),
@@ -36,6 +36,11 @@ export default function RootLayout() {
     loadToken();
     loadTheme();
     loadLocale();
+    // Safety: force splash hide after 5s to prevent infinite blank screen
+    const timeout = setTimeout(() => {
+      SplashScreen.hideAsync();
+    }, 5000);
+    return () => clearTimeout(timeout);
   }, [loadToken, loadTheme, loadLocale]);
 
   // Initialize WebSocket when authenticated with a selected agent
@@ -49,18 +54,26 @@ export default function RootLayout() {
   }, [token, selectedAgentId, wsInitialize, wsDisconnect]);
 
   useEffect(() => {
-    if (fontsLoaded && !isLoading) {
+    // Hide splash when fonts are loaded (or failed) AND auth check is done
+    if ((fontsLoaded || fontError) && !isLoading) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, isLoading]);
+  }, [fontsLoaded, fontError, isLoading]);
 
-  if (!fontsLoaded || isLoading) {
+  if (!fontsLoaded && !fontError) {
+    // Fonts still loading — keep splash screen up
+    return null;
+  }
+
+  if (isLoading) {
+    // Auth still loading — keep splash screen up
     return null;
   }
 
   return (
     <ErrorBoundary>
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
