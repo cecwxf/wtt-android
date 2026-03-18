@@ -38,11 +38,12 @@ export default function RootLayout() {
     loadToken();
     loadTheme();
     loadLocale();
-    // Safety: force ready after 3s to prevent infinite blank screen
+    // Safety: force ready after 2s to prevent infinite blank screen
     const timeout = setTimeout(() => {
+      console.warn('[WTT] Safety timeout — forcing app visible');
       setReady(true);
-      SplashScreen.hideAsync();
-    }, 3000);
+      SplashScreen.hideAsync().catch(() => {});
+    }, 2000);
     return () => clearTimeout(timeout);
   }, [loadToken, loadTheme, loadLocale]);
 
