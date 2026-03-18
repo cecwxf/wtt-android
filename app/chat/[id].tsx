@@ -11,6 +11,7 @@ import {
   Image,
   Alert,
   Animated,
+  StyleSheet,
 } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -212,9 +213,12 @@ export default function ChatScreen() {
     const useMd = hasMarkdown(item.content);
 
     return (
-      <View className={`px-4 py-1 ${isUser ? 'items-end' : 'items-start'}`}>
+      <View
+        className={`px-4 py-1 ${isUser ? 'items-end' : 'items-start'}`}
+        style={[cs.msgRow, isUser ? cs.msgRowUser : cs.msgRowAgent]}
+      >
         {!isUser && (
-          <Text className="text-xs text-indigo-500 font-inter mb-1 ml-1">
+          <Text className="text-xs text-indigo-500 font-inter mb-1 ml-1" style={cs.senderLabel}>
             {item.sender_id}
           </Text>
         )}
@@ -224,6 +228,7 @@ export default function ChatScreen() {
               ? 'bg-indigo-50 rounded-tr-lg'
               : 'bg-white rounded-tl-lg border border-gray-100'
           }`}
+          style={[cs.bubble, isUser ? cs.bubbleUser : cs.bubbleAgent]}
         >
           {useMd ? (
             <Markdown style={isUser ? userMdStyles : agentMdStyles}>
@@ -234,6 +239,7 @@ export default function ChatScreen() {
               className={`text-[15px] font-inter leading-5 ${
                 isUser ? 'text-gray-900' : 'text-gray-800'
               }`}
+              style={cs.msgText}
             >
               {item.content}
             </Text>
@@ -242,6 +248,7 @@ export default function ChatScreen() {
             className={`text-[11px] font-inter mt-1 ${
               isUser ? 'text-right text-gray-400' : 'text-gray-400'
             }`}
+            style={[cs.timestamp, isUser && cs.timestampRight]}
           >
             {formatTime(item.timestamp)}
           </Text>
@@ -256,10 +263,11 @@ export default function ChatScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         className="flex-1 bg-gray-50"
+        style={cs.root}
         keyboardVerticalOffset={90}
       >
         {isLoading ? (
-          <View className="flex-1 items-center justify-center">
+          <View className="flex-1 items-center justify-center" style={cs.loading}>
             <ActivityIndicator size="large" color="#6366F1" />
           </View>
         ) : (
@@ -279,9 +287,9 @@ export default function ChatScreen() {
             }}
             scrollEventThrottle={100}
             ListEmptyComponent={
-              <View className="flex-1 items-center justify-center py-20">
+              <View className="flex-1 items-center justify-center py-20" style={cs.empty}>
                 <Ionicons name="chatbubble-ellipses-outline" size={40} color="#D1D5DB" />
-                <Text className="mt-3 text-gray-400 text-sm font-inter">No messages yet</Text>
+                <Text className="mt-3 text-gray-400 text-sm font-inter" style={cs.emptyText}>No messages yet</Text>
               </View>
             }
           />
@@ -291,6 +299,7 @@ export default function ChatScreen() {
         {showScrollBtn && !recording && (
           <TouchableOpacity
             className="absolute right-4 bottom-20 w-10 h-10 rounded-full bg-white shadow-md items-center justify-center border border-gray-100"
+            style={cs.scrollFab}
             onPress={() => flatListRef.current?.scrollToEnd({ animated: true })}
             activeOpacity={0.7}
           >
@@ -300,27 +309,29 @@ export default function ChatScreen() {
 
         {/* Recording overlay */}
         {recording && (
-          <View className="absolute bottom-16 left-0 right-0 bg-red-500/95 py-4 px-6 flex-row items-center justify-between z-10">
-            <View className="flex-row items-center">
+          <View className="absolute bottom-16 left-0 right-0 bg-red-500/95 py-4 px-6 flex-row items-center justify-between z-10" style={cs.recordingBar}>
+            <View className="flex-row items-center" style={cs.recordingLeft}>
               <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                <View className="w-3 h-3 rounded-full bg-white" />
+                <View className="w-3 h-3 rounded-full bg-white" style={cs.recordDot} />
               </Animated.View>
-              <Text className="text-white font-bold ml-3 text-base">
+              <Text className="text-white font-bold ml-3 text-base" style={cs.recordTime}>
                 {Math.floor(recordingDuration / 60)}:{String(recordingDuration % 60).padStart(2, '0')}
               </Text>
             </View>
-            <View className="flex-row">
+            <View className="flex-row" style={cs.recordActions}>
               <TouchableOpacity
                 className="bg-white/30 rounded-full px-4 py-2 mr-3"
+                style={cs.recordCancel}
                 onPress={cancelRecording}
               >
-                <Text className="text-white font-semibold">Cancel</Text>
+                <Text className="text-white font-semibold" style={cs.recordCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 className="bg-white rounded-full px-4 py-2"
+                style={cs.recordStop}
                 onPress={stopRecording}
               >
-                <Text className="text-red-500 font-bold">Stop</Text>
+                <Text className="text-red-500 font-bold" style={cs.recordStopText}>Stop</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -328,10 +339,10 @@ export default function ChatScreen() {
 
         {/* Audio preview */}
         {audioUri && !recording && (
-          <View className="px-4 pb-1">
-            <View className="flex-row items-center bg-indigo-50 rounded-lg px-3 py-2">
+          <View className="px-4 pb-1" style={cs.previewWrap}>
+            <View className="flex-row items-center bg-indigo-50 rounded-lg px-3 py-2" style={cs.audioPreview}>
               <Ionicons name="musical-note" size={18} color="#6366F1" />
-              <Text className="flex-1 text-sm text-indigo-700 ml-2 font-inter">
+              <Text className="flex-1 text-sm text-indigo-700 ml-2 font-inter" style={cs.audioLabel}>
                 Voice recording ({recordingDuration}s)
               </Text>
               <TouchableOpacity onPress={() => setAudioUri(null)}>
@@ -343,11 +354,12 @@ export default function ChatScreen() {
 
         {/* Image preview */}
         {imageUri && (
-          <View className="px-4 pb-1">
-            <View className="relative">
-              <Image source={{ uri: imageUri }} className="w-20 h-20 rounded-lg" />
+          <View className="px-4 pb-1" style={cs.previewWrap}>
+            <View style={{ position: 'relative' }}>
+              <Image source={{ uri: imageUri }} className="w-20 h-20 rounded-lg" style={cs.imgPreview} />
               <TouchableOpacity
                 className="absolute -top-1 -right-1 bg-gray-800 rounded-full w-5 h-5 items-center justify-center"
+                style={cs.imgClose}
                 onPress={() => setImageUri(null)}
               >
                 <Ionicons name="close" size={12} color="#FFF" />
@@ -357,12 +369,13 @@ export default function ChatScreen() {
         )}
 
         {/* Input Bar */}
-        <View className="flex-row items-end px-3 py-2 bg-white border-t border-gray-100">
-          <TouchableOpacity className="p-2" onPress={handlePickImage}>
+        <View className="flex-row items-end px-3 py-2 bg-white border-t border-gray-100" style={cs.inputBar}>
+          <TouchableOpacity className="p-2" style={cs.iconBtn} onPress={handlePickImage}>
             <Ionicons name="image-outline" size={24} color="#64748B" />
           </TouchableOpacity>
           <TouchableOpacity
             className={`p-2 ${recording ? 'opacity-50' : ''}`}
+            style={cs.iconBtn}
             onPress={recording ? stopRecording : startRecording}
           >
             <Ionicons
@@ -373,6 +386,7 @@ export default function ChatScreen() {
           </TouchableOpacity>
           <TextInput
             className="flex-1 bg-gray-100 rounded-2xl px-4 py-2 mx-1 text-base font-inter text-gray-900 max-h-28"
+            style={cs.textInput}
             placeholder="Type a message..."
             placeholderTextColor="#9CA3AF"
             value={text}
@@ -383,6 +397,7 @@ export default function ChatScreen() {
           />
           <TouchableOpacity
             className={`p-2 rounded-full ${text.trim() ? 'bg-indigo-500' : 'bg-gray-200'}`}
+            style={[cs.sendBtn, text.trim() ? cs.sendActive : cs.sendInactive]}
             onPress={handleSend}
             disabled={!text.trim() || sending}
           >
@@ -401,3 +416,41 @@ export default function ChatScreen() {
     </>
   );
 }
+
+const cs = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#F9FAFB' },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
+  emptyText: { marginTop: 12, color: '#9CA3AF', fontSize: 14 },
+  msgRow: { paddingHorizontal: 16, paddingVertical: 4 },
+  msgRowUser: { alignItems: 'flex-end' },
+  msgRowAgent: { alignItems: 'flex-start' },
+  senderLabel: { fontSize: 12, color: '#6366F1', marginBottom: 4, marginLeft: 4 },
+  bubble: { maxWidth: '85%', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
+  bubbleUser: { backgroundColor: '#EEF2FF', borderTopRightRadius: 8 },
+  bubbleAgent: { backgroundColor: '#fff', borderTopLeftRadius: 8, borderWidth: 1, borderColor: '#F3F4F6' },
+  msgText: { fontSize: 15, lineHeight: 22, color: '#1F2937' },
+  timestamp: { fontSize: 11, color: '#9CA3AF', marginTop: 4 },
+  timestampRight: { textAlign: 'right' },
+  scrollFab: { position: 'absolute', right: 16, bottom: 80, width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#F3F4F6', elevation: 3 },
+  recordingBar: { position: 'absolute', bottom: 64, left: 0, right: 0, backgroundColor: 'rgba(239,68,68,0.95)', paddingVertical: 16, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  recordingLeft: { flexDirection: 'row', alignItems: 'center' },
+  recordDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#fff' },
+  recordTime: { color: '#fff', fontWeight: 'bold', marginLeft: 12, fontSize: 16 },
+  recordActions: { flexDirection: 'row' },
+  recordCancel: { backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 9999, paddingHorizontal: 16, paddingVertical: 8, marginRight: 12 },
+  recordCancelText: { color: '#fff', fontWeight: '600' },
+  recordStop: { backgroundColor: '#fff', borderRadius: 9999, paddingHorizontal: 16, paddingVertical: 8 },
+  recordStopText: { color: '#EF4444', fontWeight: 'bold' },
+  previewWrap: { paddingHorizontal: 16, paddingBottom: 4 },
+  audioPreview: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EEF2FF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  audioLabel: { flex: 1, fontSize: 14, color: '#4338CA', marginLeft: 8 },
+  imgPreview: { width: 80, height: 80, borderRadius: 8 },
+  imgClose: { position: 'absolute', top: -4, right: -4, backgroundColor: '#1F2937', borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
+  inputBar: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#F3F4F6' },
+  iconBtn: { padding: 8 },
+  textInput: { flex: 1, backgroundColor: '#F3F4F6', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, marginHorizontal: 4, fontSize: 16, color: '#111827', maxHeight: 112 },
+  sendBtn: { padding: 8, borderRadius: 9999 },
+  sendActive: { backgroundColor: '#6366F1' },
+  sendInactive: { backgroundColor: '#E5E7EB' },
+});
