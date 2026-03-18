@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { View, Text, ActivityIndicator } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
@@ -24,6 +25,7 @@ export default function RootLayout() {
   const selectedAgentId = useAgentsStore((s) => s.selectedAgentId);
   const wsInitialize = useWebSocketStore((s) => s.initialize);
   const wsDisconnect = useWebSocketStore((s) => s.disconnect);
+  const [ready, setReady] = useState(false);
 
   const [fontsLoaded, fontError] = useFonts({
     Inter: require('../assets/fonts/Inter.ttf'),
@@ -36,10 +38,11 @@ export default function RootLayout() {
     loadToken();
     loadTheme();
     loadLocale();
-    // Safety: force splash hide after 5s to prevent infinite blank screen
+    // Safety: force ready after 3s to prevent infinite blank screen
     const timeout = setTimeout(() => {
+      setReady(true);
       SplashScreen.hideAsync();
-    }, 5000);
+    }, 3000);
     return () => clearTimeout(timeout);
   }, [loadToken, loadTheme, loadLocale]);
 
@@ -54,20 +57,20 @@ export default function RootLayout() {
   }, [token, selectedAgentId, wsInitialize, wsDisconnect]);
 
   useEffect(() => {
-    // Hide splash when fonts are loaded (or failed) AND auth check is done
     if ((fontsLoaded || fontError) && !isLoading) {
+      setReady(true);
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError, isLoading]);
 
-  if (!fontsLoaded && !fontError) {
-    // Fonts still loading — keep splash screen up
-    return null;
-  }
-
-  if (isLoading) {
-    // Auth still loading — keep splash screen up
-    return null;
+  // Use inline styles for the loading screen to avoid NativeWind dependency
+  if (!ready && !fontsLoaded && !fontError) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#6366F1' }}>
+        <Text style={{ color: '#fff', fontSize: 28, fontWeight: 'bold', marginBottom: 16 }}>WTT</Text>
+        <ActivityIndicator size="large" color="#fff" />
+      </View>
+    );
   }
 
   return (
