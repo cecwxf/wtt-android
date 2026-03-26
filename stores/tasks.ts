@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { WTT_API_URL } from '@/lib/api/base-url';
 import type { Message } from '@/lib/api/wtt-client';
+import { useWebSocketStore } from './websocket';
 
 export interface TaskItem {
   id: string;
@@ -73,6 +74,35 @@ interface TasksState {
 async function parseErr(response: Response, fallback: string): Promise<string> {
   const data = await response.json().catch(() => ({ detail: fallback }));
   return data.detail || fallback;
+}
+
+function normalizeMessage(topicId: string, raw: Record<string, unknown>): Message {
+  return {
+    message_id: String(raw.message_id || raw.id || ''),
+    topic_id: String(raw.topic_id || topicId),
+    sender_id: String(raw.sender_id || ''),
+    sender_type: String(raw.sender_type || 'agent').toLowerCase() === 'human' ? 'human' : 'agent',
+    source: String(raw.source || 'topic').toLowerCase() === 'im' ? 'im' : 'topic',
+    content_type: String(raw.content_type || 'text'),
+    semantic_type: String(raw.semantic_type || 'post'),
+    content: String(raw.content || ''),
+    timestamp: String(raw.timestamp || raw.created_at || new Date().toISOString()),
+    reply_to: raw.reply_to ? String(raw.reply_to) : undefined,
+  };
+}
+
+function normalizeMessageList(topicId: string, data: unknown): Message[] {
+  const arr = Array.isArray(data)
+    ? data
+    : data && typeof data === 'object' && Array.isArray((data as { messages?: unknown[] }).messages)
+      ? (data as { messages: unknown[] }).messages
+      : [];
+
+  return arr
+    .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object')
+    .map((x) => normalizeMessage(topicId, x))
+    .filter((x) => !!x.message_id)
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 }
 
 export const useTasksStore = create<TasksState>((set, get) => ({
@@ -239,6 +269,24 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       return;
     }
     set({ timelineLoadingTaskId: taskId });
+
+    try {
+      const ws = useWebSocketStore.getState();
+      if (ws.wsState === 'connected') {
+        const wsData = await ws.sendAction<unknown>('history', { topic_id: topicId, limit: 200 });
+        if (wsData !== null) {
+          const messages = normalizeMessageList(topicId, wsData);
+          set((s) => ({
+            timelineByTask: { ...s.timelineByTask, [taskId]: messages },
+            timelineLoadingTaskId: null,
+          }));
+          return;
+        }
+      }
+    } catch {
+      // fallback to REST below
+    }
+
     try {
       const query = new URLSearchParams({ limit: '200' });
       if (agentId) query.set('agent_id', agentId);
@@ -250,8 +298,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
         throw new Error(msg);
       }
       const data = await res.json();
-      const messages = (data.messages || data || []) as Message[];
-      messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      const messages = normalizeMessageList(topicId, data);
       set((s) => ({
         timelineByTask: { ...s.timelineByTask, [taskId]: messages },
         timelineLoadingTaskId: null,
@@ -291,6 +338,27 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       if (!task.topic_id) {
         throw new Error('Task has no topic');
       }
+
+      const ws = useWebSocketStore.getState();
+      if (ws.wsState === 'connected') {
+        try {
+          const wsData = await ws.sendAction<unknown>('publish', {
+            topic_id: task.topic_id,
+            content: text,
+            content_type: 'text',
+            semantic_type: 'post',
+          });
+          if (wsData !== null) {
+            get().appendTimelineMessage(
+              normalizeMessage(task.topic_id, wsData as Record<string, unknown>),
+            );
+            return;
+          }
+        } catch {
+          // fallback to REST below
+        }
+      }
+
       const url = `${WTT_API_URL}/api/topics/${task.topic_id}/messages?agent_id=${encodeURIComponent(senderId)}`;
       const resp = await fetch(url, {
         method: 'POST',
