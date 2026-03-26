@@ -71,6 +71,7 @@ export default function FeedScreen() {
 
   const wsState = useWebSocketStore((s) => s.wsState);
   const wsLastEventAt = useWebSocketStore((s) => s.lastEventAt);
+  const sendWsAction = useWebSocketStore((s) => s.sendAction);
 
   const [topics, setTopics] = useState<FeedTopic[]>([]);
   const [p2pRequests, setP2pRequests] = useState<P2PRequestItem[]>([]);
@@ -113,16 +114,74 @@ export default function FeedScreen() {
     }
 
     try {
-      const topicRes = await fetch(
-        `${WTT_API_URL}/api/topics/subscribed?agent_id=${encodeURIComponent(selectedAgentId)}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+      let fetchedTopics = false;
 
-      if (topicRes.ok) {
-        const data = await topicRes.json();
-        const list = (Array.isArray(data) ? data : data.topics || []) as FeedTopic[];
-        list.sort((a, b) => new Date(topicTime(b)).getTime() - new Date(topicTime(a)).getTime());
-        setTopics(list);
+      if (wsState === 'connected') {
+        try {
+          const wsSubscribed = await sendWsAction<unknown>('subscribed');
+          if (wsSubscribed !== null) {
+            const listRaw = Array.isArray(wsSubscribed) ? wsSubscribed : [];
+
+            const wsPoll = await sendWsAction<unknown>('poll', { limit: 100 }).catch(() => null);
+            const topicLastActivity = new Map<string, string>();
+            if (wsPoll && typeof wsPoll === 'object') {
+              const pollMessages = (wsPoll as { messages?: unknown[] }).messages;
+              if (Array.isArray(pollMessages)) {
+                for (const m of pollMessages) {
+                  if (!m || typeof m !== 'object') continue;
+                  const mm = m as { topic_id?: unknown; created_at?: unknown };
+                  const tid = String(mm.topic_id || '');
+                  const ts = String(mm.created_at || '');
+                  if (!tid || !ts) continue;
+                  const prev = topicLastActivity.get(tid);
+                  if (!prev || new Date(ts).getTime() > new Date(prev).getTime()) {
+                    topicLastActivity.set(tid, ts);
+                  }
+                }
+              }
+            }
+
+            const list = listRaw
+              .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object')
+              .map((x) => {
+                const id = String(x.id || '');
+                return {
+                  id,
+                  name: String(x.name || id),
+                  description: String(x.description || ''),
+                  type: String(x.type || 'discussion').toLowerCase() as TopicType,
+                  topic_type: String(x.type || 'discussion').toLowerCase() as TopicType,
+                  my_role: x.my_role ? String(x.my_role) : undefined,
+                  created_at: String(x.created_at || new Date().toISOString()),
+                  last_activity_at: topicLastActivity.get(id),
+                  unread_count: 0,
+                } as FeedTopic;
+              })
+              .filter((x) => !!x.id);
+
+            list.sort(
+              (a, b) => new Date(topicTime(b)).getTime() - new Date(topicTime(a)).getTime(),
+            );
+            setTopics(list);
+            fetchedTopics = true;
+          }
+        } catch {
+          // fallback to REST below
+        }
+      }
+
+      if (!fetchedTopics) {
+        const topicRes = await fetch(
+          `${WTT_API_URL}/api/topics/subscribed?agent_id=${encodeURIComponent(selectedAgentId)}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+
+        if (topicRes.ok) {
+          const data = await topicRes.json();
+          const list = (Array.isArray(data) ? data : data.topics || []) as FeedTopic[];
+          list.sort((a, b) => new Date(topicTime(b)).getTime() - new Date(topicTime(a)).getTime());
+          setTopics(list);
+        }
       }
 
       const userId = user?.id ? String(user.id) : '';
@@ -146,7 +205,7 @@ export default function FeedScreen() {
     } finally {
       setLoading(false);
     }
-  }, [token, selectedAgentId, user?.id]);
+  }, [token, selectedAgentId, user?.id, wsState, sendWsAction]);
 
   useEffect(() => {
     if (token) {
