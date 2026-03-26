@@ -10,6 +10,7 @@ import { useAgentsStore } from '@/stores/agents';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useThemeStore } from '@/stores/theme';
 import { useI18nStore } from '@/stores/i18n';
+import { useAppSettingsStore } from '@/stores/app-settings';
 import { WS_BASE_URL } from '@/lib/api/base-url';
 import '../global.css';
 
@@ -21,6 +22,7 @@ export default function RootLayout() {
   const loadLocale = useI18nStore((s) => s.loadLocale);
   const loadToken = useAuthStore((s) => s.loadToken);
   const isLoading = useAuthStore((s) => s.isLoading);
+  const loadAppSettings = useAppSettingsStore((s) => s.load);
   const token = useAuthStore((s) => s.token);
   const selectedAgentId = useAgentsStore((s) => s.selectedAgentId);
   const wsInitialize = useWebSocketStore((s) => s.initialize);
@@ -38,6 +40,7 @@ export default function RootLayout() {
     loadToken();
     loadTheme();
     loadLocale();
+    loadAppSettings();
     // Safety: force ready after 2s to prevent infinite blank screen
     const timeout = setTimeout(() => {
       console.warn('[WTT] Safety timeout — forcing app visible');
@@ -45,7 +48,7 @@ export default function RootLayout() {
       SplashScreen.hideAsync().catch(() => {});
     }, 2000);
     return () => clearTimeout(timeout);
-  }, [loadToken, loadTheme, loadLocale]);
+  }, [loadToken, loadTheme, loadLocale, loadAppSettings]);
 
   // Initialize WebSocket when authenticated with a selected agent
   useEffect(() => {
@@ -67,8 +70,17 @@ export default function RootLayout() {
   // Use inline styles for the loading screen to avoid NativeWind dependency
   if (!ready && !fontsLoaded && !fontError) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#6366F1' }}>
-        <Text style={{ color: '#fff', fontSize: 28, fontWeight: 'bold', marginBottom: 16 }}>WTT</Text>
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#6366F1',
+        }}
+      >
+        <Text style={{ color: '#fff', fontSize: 28, fontWeight: 'bold', marginBottom: 16 }}>
+          WTT
+        </Text>
         <ActivityIndicator size="large" color="#fff" />
       </View>
     );

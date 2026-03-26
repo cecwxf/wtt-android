@@ -78,6 +78,7 @@ export default function FeedScreen() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [topicSearch, setTopicSearch] = useState('');
 
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -231,16 +232,25 @@ export default function FeedScreen() {
   };
 
   const grouped = useMemo(() => {
-    const generalTasks = topics.filter((t) => isGeneralTaskTopic(t));
-    const p2p = topics.filter((t) => topicKind(t) === 'p2p' && !t.task_id);
-    const discuss = topics.filter((t) => {
+    const q = topicSearch.trim().toLowerCase();
+    const filtered = !q
+      ? topics
+      : topics.filter((t) => {
+          const hay =
+            `${t.name || ''} ${t.description || ''} ${t.id || ''} ${t.task_id || ''}`.toLowerCase();
+          return hay.includes(q);
+        });
+
+    const generalTasks = filtered.filter((t) => isGeneralTaskTopic(t));
+    const p2p = filtered.filter((t) => topicKind(t) === 'p2p' && !t.task_id);
+    const discuss = filtered.filter((t) => {
       const type = topicKind(t);
       return !t.task_id && (type === 'discussion' || type === 'collaborative');
     });
-    const subscriber = topics.filter((t) => !t.task_id && topicKind(t) === 'broadcast');
+    const subscriber = filtered.filter((t) => !t.task_id && topicKind(t) === 'broadcast');
 
-    return { generalTasks, p2p, discuss, subscriber };
-  }, [topics]);
+    return { generalTasks, p2p, discuss, subscriber, total: filtered.length };
+  }, [topics, topicSearch]);
 
   const openTopic = (topic: FeedTopic) => {
     router.push({
@@ -542,6 +552,25 @@ export default function FeedScreen() {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.searchWrap}>
+        <Ionicons name="search-outline" size={16} color="#94A3B8" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search topic..."
+          placeholderTextColor="#94A3B8"
+          value={topicSearch}
+          onChangeText={setTopicSearch}
+        />
+        {!!topicSearch.trim() && (
+          <TouchableOpacity
+            onPress={() => setTopicSearch('')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="close-circle" size={16} color="#94A3B8" />
+          </TouchableOpacity>
+        )}
+      </View>
+
       <ScrollView
         style={{ flex: 1 }}
         refreshControl={
@@ -549,6 +578,10 @@ export default function FeedScreen() {
         }
         contentContainerStyle={styles.content}
       >
+        {!!topicSearch.trim() && (
+          <Text style={styles.searchResultText}>Search result: {grouped.total}</Text>
+        )}
+
         {p2pRequests.length > 0 && (
           <View style={styles.groupCard}>
             <View style={styles.groupHeader}>
@@ -810,6 +843,31 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   actionBtnText: { fontSize: 13, fontWeight: '600', color: '#4F46E5' },
+
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginHorizontal: 12,
+    marginTop: 8,
+    marginBottom: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    backgroundColor: '#fff',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    paddingVertical: 0,
+  },
+  searchResultText: {
+    fontSize: 12,
+    color: '#64748B',
+  },
 
   content: { padding: 12, gap: 12 },
   groupCard: {

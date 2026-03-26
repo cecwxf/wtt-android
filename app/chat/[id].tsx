@@ -22,6 +22,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useAgentsStore } from '@/stores/agents';
 import { useMessagesStore } from '@/stores/messages';
 import { useWebSocketStore } from '@/stores/websocket';
+import { useAppSettingsStore } from '@/stores/app-settings';
 import { formatTime } from '@/lib/time';
 import { haptic } from '@/lib/haptics';
 import type { Message } from '@/lib/api/wtt-client';
@@ -70,6 +71,7 @@ export default function ChatScreen() {
   const sendMessage = useMessagesStore((s) => s.sendMessage);
   const isLoading = useMessagesStore((s) => s.isLoading);
   const wsState = useWebSocketStore((s) => s.wsState);
+  const fallbackPollSeconds = useAppSettingsStore((s) => s.fallbackPollSeconds);
 
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -92,9 +94,9 @@ export default function ChatScreen() {
   useEffect(() => {
     if (!token || !topicId) return;
     if (wsState === 'connected') return;
-    const interval = setInterval(() => fetchMessages(token, topicId), 10000);
+    const interval = setInterval(() => fetchMessages(token, topicId), fallbackPollSeconds * 1000);
     return () => clearInterval(interval);
-  }, [token, topicId, fetchMessages, wsState]);
+  }, [token, topicId, fetchMessages, wsState, fallbackPollSeconds]);
 
   const handleSend = useCallback(async () => {
     if (!text.trim() || !token || !topicId || !agentId || sending) return;

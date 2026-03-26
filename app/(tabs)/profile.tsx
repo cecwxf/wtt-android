@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/stores/auth';
@@ -6,6 +6,8 @@ import { useAgentsStore } from '@/stores/agents';
 import { useWebSocketStore } from '@/stores/websocket';
 import { useThemeStore } from '@/stores/theme';
 import { useI18nStore } from '@/stores/i18n';
+import { useAppSettingsStore } from '@/stores/app-settings';
+import { WTT_API_URL, WS_BASE_URL } from '@/lib/api/base-url';
 
 const THEME_OPTIONS = [
   { value: 'system' as const, label: 'System' },
@@ -30,6 +32,15 @@ export default function ProfileScreen() {
   const locale = useI18nStore((s) => s.locale);
   const setLocale = useI18nStore((s) => s.setLocale);
   const t = useI18nStore((s) => s.t);
+
+  const messageNotify = useAppSettingsStore((s) => s.messageNotify);
+  const agentAlert = useAppSettingsStore((s) => s.agentAlert);
+  const soundOn = useAppSettingsStore((s) => s.soundOn);
+  const fallbackPollSeconds = useAppSettingsStore((s) => s.fallbackPollSeconds);
+  const setMessageNotify = useAppSettingsStore((s) => s.setMessageNotify);
+  const setAgentAlert = useAppSettingsStore((s) => s.setAgentAlert);
+  const setSoundOn = useAppSettingsStore((s) => s.setSoundOn);
+  const setFallbackPollSeconds = useAppSettingsStore((s) => s.setFallbackPollSeconds);
 
   const handleLogout = async () => {
     Alert.alert(t.auth.signOut, 'Are you sure you want to sign out?', [
@@ -68,21 +79,33 @@ export default function ProfileScreen() {
     Alert.alert(t.profile.language, '', buttons);
   };
 
+  const handlePollPick = () => {
+    const options: (5 | 10 | 15 | 30)[] = [5, 10, 15, 30];
+    const buttons = options.map((sec) => ({
+      text: `${sec}s${sec === fallbackPollSeconds ? ' ✓' : ''}`,
+      onPress: () => setFallbackPollSeconds(sec),
+    }));
+    buttons.push({ text: t.common.cancel, onPress: async () => {} });
+    Alert.alert('Fallback Poll', 'Used when WebSocket is disconnected', buttons);
+  };
+
   const themeModeLabel = THEME_OPTIONS.find((o) => o.value === themeMode)?.label ?? 'System';
   const langLabel = LANG_OPTIONS.find((o) => o.value === locale)?.label ?? 'English';
 
   const wsColor =
-    wsState === 'connected'
-      ? '#22C55E'
-      : wsState === 'connecting'
-        ? '#EAB308'
-        : '#D1D5DB';
+    wsState === 'connected' ? '#22C55E' : wsState === 'connecting' ? '#EAB308' : '#D1D5DB';
 
   return (
     <ScrollView className="flex-1 bg-gray-50" style={styles.root}>
       {/* User Info */}
-      <View className="items-center pt-8 pb-6 bg-white border-b border-gray-100" style={styles.userInfo}>
-        <View className="w-20 h-20 rounded-full bg-indigo-500 items-center justify-center mb-3" style={styles.avatarCircle}>
+      <View
+        className="items-center pt-8 pb-6 bg-white border-b border-gray-100"
+        style={styles.userInfo}
+      >
+        <View
+          className="w-20 h-20 rounded-full bg-indigo-500 items-center justify-center mb-3"
+          style={styles.avatarCircle}
+        >
           <Text className="text-white text-2xl font-bold" style={styles.avatarText}>
             {(user?.display_name || user?.username || '?')[0].toUpperCase()}
           </Text>
@@ -96,12 +119,20 @@ export default function ProfileScreen() {
         <View className="flex-row items-center mt-2" style={styles.statusRow}>
           <View
             className={`w-2 h-2 rounded-full mr-1.5 ${
-              wsState === 'connected' ? 'bg-green-500' : wsState === 'connecting' ? 'bg-yellow-500' : 'bg-gray-300'
+              wsState === 'connected'
+                ? 'bg-green-500'
+                : wsState === 'connecting'
+                  ? 'bg-yellow-500'
+                  : 'bg-gray-300'
             }`}
             style={[styles.statusDot, { backgroundColor: wsColor }]}
           />
           <Text className="text-xs text-gray-400" style={styles.statusText}>
-            {wsState === 'connected' ? 'Connected' : wsState === 'connecting' ? 'Connecting...' : 'Disconnected'}
+            {wsState === 'connected'
+              ? 'Connected'
+              : wsState === 'connecting'
+                ? 'Connecting...'
+                : 'Disconnected'}
           </Text>
         </View>
       </View>
@@ -114,7 +145,9 @@ export default function ProfileScreen() {
         <View className="bg-white rounded-xl overflow-hidden" style={styles.card}>
           {agents.length === 0 ? (
             <View className="px-4 py-3" style={styles.noAgentRow}>
-              <Text className="text-gray-400 text-sm" style={styles.noAgentText}>{t.profile.noAgents}</Text>
+              <Text className="text-gray-400 text-sm" style={styles.noAgentText}>
+                {t.profile.noAgents}
+              </Text>
             </View>
           ) : (
             agents.map((agent, idx) => {
@@ -137,7 +170,10 @@ export default function ProfileScreen() {
                     className={`w-9 h-9 rounded-full items-center justify-center mr-3 ${
                       isSelected ? 'bg-indigo-500' : 'bg-gray-100'
                     }`}
-                    style={[styles.agentIcon, isSelected ? styles.agentIconSelected : styles.agentIconDefault]}
+                    style={[
+                      styles.agentIcon,
+                      isSelected ? styles.agentIconSelected : styles.agentIconDefault,
+                    ]}
                   >
                     <Ionicons
                       name="hardware-chip-outline"
@@ -153,9 +189,7 @@ export default function ProfileScreen() {
                       {agent.agent_id}
                     </Text>
                   </View>
-                  {isSelected && (
-                    <Ionicons name="checkmark-circle" size={22} color="#6366F1" />
-                  )}
+                  {isSelected && <Ionicons name="checkmark-circle" size={22} color="#6366F1" />}
                 </TouchableOpacity>
               );
             })
@@ -167,7 +201,9 @@ export default function ProfileScreen() {
           onPress={() => router.push('/agent/claim')}
           activeOpacity={0.7}
         >
-          <Text className="text-indigo-600 font-semibold text-sm" style={styles.claimText}>+ Claim Agent</Text>
+          <Text className="text-indigo-600 font-semibold text-sm" style={styles.claimText}>
+            + Claim Agent
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -187,7 +223,9 @@ export default function ProfileScreen() {
             <Text className="flex-1 ml-3 text-base text-gray-900" style={styles.settingsLabel}>
               {t.profile.darkMode}
             </Text>
-            <Text className="text-sm text-gray-400" style={styles.settingsValue}>{themeModeLabel}</Text>
+            <Text className="text-sm text-gray-400" style={styles.settingsValue}>
+              {themeModeLabel}
+            </Text>
             <Ionicons name="chevron-forward" size={16} color="#D1D5DB" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
           <TouchableOpacity
@@ -200,17 +238,107 @@ export default function ProfileScreen() {
             <Text className="flex-1 ml-3 text-base text-gray-900" style={styles.settingsLabel}>
               {t.profile.language}
             </Text>
-            <Text className="text-sm text-gray-400" style={styles.settingsValue}>{langLabel}</Text>
+            <Text className="text-sm text-gray-400" style={styles.settingsValue}>
+              {langLabel}
+            </Text>
             <Ionicons name="chevron-forward" size={16} color="#D1D5DB" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
-          <TouchableOpacity className="flex-row items-center px-4 py-3" style={styles.settingsRow} activeOpacity={0.7}>
+          <TouchableOpacity
+            className="flex-row items-center px-4 py-3"
+            style={styles.settingsRow}
+            activeOpacity={0.7}
+          >
             <Ionicons name="information-circle-outline" size={20} color="#64748B" />
             <Text className="flex-1 ml-3 text-base text-gray-900" style={styles.settingsLabel}>
               About
             </Text>
-            <Text className="text-sm text-gray-400" style={styles.settingsValue}>v1.0.0</Text>
+            <Text className="text-sm text-gray-400" style={styles.settingsValue}>
+              v1.0.0
+            </Text>
             <Ionicons name="chevron-forward" size={16} color="#D1D5DB" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Notifications */}
+      <View className="mx-4 mb-4" style={styles.section}>
+        <Text className="text-sm font-semibold text-gray-500 mb-2 ml-1" style={styles.sectionTitle}>
+          NOTIFICATIONS
+        </Text>
+        <View className="bg-white rounded-xl overflow-hidden" style={styles.card}>
+          <View
+            className="flex-row items-center px-4 py-3 border-b border-gray-50"
+            style={[styles.settingsRow, styles.rowBorder]}
+          >
+            <Ionicons name="notifications-outline" size={20} color="#64748B" />
+            <Text className="flex-1 ml-3 text-base text-gray-900" style={styles.settingsLabel}>
+              Message Notify
+            </Text>
+            <Switch value={messageNotify} onValueChange={setMessageNotify} />
+          </View>
+          <View
+            className="flex-row items-center px-4 py-3 border-b border-gray-50"
+            style={[styles.settingsRow, styles.rowBorder]}
+          >
+            <Ionicons name="flash-outline" size={20} color="#64748B" />
+            <Text className="flex-1 ml-3 text-base text-gray-900" style={styles.settingsLabel}>
+              Agent Alerts
+            </Text>
+            <Switch value={agentAlert} onValueChange={setAgentAlert} />
+          </View>
+          <View className="flex-row items-center px-4 py-3" style={styles.settingsRow}>
+            <Ionicons name="volume-high-outline" size={20} color="#64748B" />
+            <Text className="flex-1 ml-3 text-base text-gray-900" style={styles.settingsLabel}>
+              Sound
+            </Text>
+            <Switch value={soundOn} onValueChange={setSoundOn} />
+          </View>
+        </View>
+      </View>
+
+      {/* Poll / API / Quick actions */}
+      <View className="mx-4 mb-4" style={styles.section}>
+        <Text className="text-sm font-semibold text-gray-500 mb-2 ml-1" style={styles.sectionTitle}>
+          ADVANCED
+        </Text>
+        <View className="bg-white rounded-xl overflow-hidden" style={styles.card}>
+          <TouchableOpacity
+            className="flex-row items-center px-4 py-3 border-b border-gray-50"
+            style={[styles.settingsRow, styles.rowBorder]}
+            onPress={handlePollPick}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="refresh-outline" size={20} color="#64748B" />
+            <Text className="flex-1 ml-3 text-base text-gray-900" style={styles.settingsLabel}>
+              Fallback Poll
+            </Text>
+            <Text className="text-sm text-gray-400" style={styles.settingsValue}>
+              {fallbackPollSeconds}s
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" style={{ marginLeft: 4 }} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            className="flex-row items-center px-4 py-3 border-b border-gray-50"
+            style={[styles.settingsRow, styles.rowBorder]}
+            onPress={() => router.push('/(tabs)/explore')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="search-outline" size={20} color="#64748B" />
+            <Text className="flex-1 ml-3 text-base text-gray-900" style={styles.settingsLabel}>
+              Search Topics
+            </Text>
+            <Text className="text-sm text-gray-400" style={styles.settingsValue}>
+              Explore
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" style={{ marginLeft: 4 }} />
+          </TouchableOpacity>
+
+          <View className="px-4 py-3" style={styles.apiBlock}>
+            <Text style={styles.apiTitle}>API / WS</Text>
+            <Text style={styles.apiLine}>API: {WTT_API_URL}</Text>
+            <Text style={styles.apiLine}>WS: {WS_BASE_URL}</Text>
+          </View>
         </View>
       </View>
 
@@ -222,7 +350,9 @@ export default function ProfileScreen() {
           onPress={handleLogout}
           activeOpacity={0.7}
         >
-          <Text className="text-red-500 font-semibold text-base" style={styles.logoutText}>{t.auth.signOut}</Text>
+          <Text className="text-red-500 font-semibold text-base" style={styles.logoutText}>
+            {t.auth.signOut}
+          </Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -318,6 +448,19 @@ const styles = StyleSheet.create({
   settingsValue: {
     fontSize: 14,
     color: '#9CA3AF',
+  },
+  apiBlock: {
+    backgroundColor: '#F8FAFC',
+  },
+  apiTitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  apiLine: {
+    fontSize: 11,
+    color: '#64748B',
   },
   agentSelected: {
     backgroundColor: '#EEF2FF',
