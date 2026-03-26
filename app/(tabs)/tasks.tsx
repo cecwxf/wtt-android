@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,40 +16,56 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/auth';
 import { useAgentsStore } from '@/stores/agents';
 import { useTasksStore, type TaskItem } from '@/stores/tasks';
-import { formatTimeAgo } from '@/lib/time';
+import { formatTimeAgo, formatTime } from '@/lib/time';
+import type { Message } from '@/lib/api/wtt-client';
 
-const STATUS_COLUMNS = ['todo', 'doing', 'review', 'done', 'blocked'] as const;
+const STATUS_COLUMNS: TaskItem['status'][] = ['todo', 'doing', 'review', 'done', 'blocked'];
 
-const STATUS_CONFIG: Record<
-  TaskItem['status'],
-  { label: string; dotColor: string; bgColor: string; textColor: string; dot: string; bg: string; text: string }
-> = {
-  todo: { label: 'To Do', dotColor: '#6366F1', bgColor: '#EEF2FF', textColor: '#4338CA', dot: 'bg-indigo-500', bg: 'bg-indigo-50', text: 'text-indigo-700' },
-  doing: { label: 'Doing', dotColor: '#22C55E', bgColor: '#F0FDF4', textColor: '#15803D', dot: 'bg-green-500', bg: 'bg-green-50', text: 'text-green-700' },
-  review: { label: 'Review', dotColor: '#F59E0B', bgColor: '#FFFBEB', textColor: '#B45309', dot: 'bg-amber-500', bg: 'bg-amber-50', text: 'text-amber-700' },
-  done: { label: 'Done', dotColor: '#10B981', bgColor: '#ECFDF5', textColor: '#047857', dot: 'bg-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700' },
-  blocked: { label: 'Blocked', dotColor: '#EF4444', bgColor: '#FEF2F2', textColor: '#B91C1C', dot: 'bg-red-500', bg: 'bg-red-50', text: 'text-red-700' },
+const STATUS_CONFIG: Record<TaskItem['status'], { label: string; color: string; bg: string }> = {
+  todo: { label: 'To Do', color: '#4338CA', bg: '#EEF2FF' },
+  doing: { label: 'Doing', color: '#15803D', bg: '#F0FDF4' },
+  review: { label: 'Review', color: '#B45309', bg: '#FFFBEB' },
+  done: { label: 'Done', color: '#047857', bg: '#ECFDF5' },
+  blocked: { label: 'Blocked', color: '#B91C1C', bg: '#FEF2F2' },
 };
 
-const PRIORITY_CONFIG: Record<TaskItem['priority'], { bgColor: string; textColor: string; bg: string; text: string }> = {
-  P0: { bgColor: '#FEE2E2', textColor: '#B91C1C', bg: 'bg-red-100', text: 'text-red-700' },
-  P1: { bgColor: '#FFEDD5', textColor: '#C2410C', bg: 'bg-orange-100', text: 'text-orange-700' },
-  P2: { bgColor: '#FEF9C3', textColor: '#A16207', bg: 'bg-yellow-100', text: 'text-yellow-700' },
-  P3: { bgColor: '#F3F4F6', textColor: '#6B7280', bg: 'bg-gray-100', text: 'text-gray-500' },
-};
+const GENERAL_TYPES = new Set(['', 'general', 'feature', 'common']);
 
-const TASK_TYPES = ['common', 'code', 'research'] as const;
+function isGeneralTask(task: TaskItem): boolean {
+  const t = String(task.task_type || '').toLowerCase();
+  return GENERAL_TYPES.has(t);
+}
 
 export default function TasksScreen() {
   const token = useAuthStore((s) => s.token);
   const selectedAgentId = useAgentsStore((s) => s.selectedAgentId);
-  const { tasks, isLoading, fetchTasks, createTask, updateTaskStatus, deleteTask } =
-    useTasksStore();
+
+  const {
+    tasks,
+    isLoading,
+    fetchTasks,
+    createTask,
+    deleteTask,
+    runTask,
+    reviewTask,
+    fetchTaskTimeline,
+    sendTaskChat,
+    timelineByTask,
+    timelineLoadingTaskId,
+    error,
+  } = useTasksStore();
 
   const [refreshing, setRefreshing] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
+
+  const [createOpen, setCreateOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
-  const [newType, setNewType] = useState<string>('common');
+  const [newDesc, setNewDesc] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [taskChatText, setTaskChatText] = useState('');
+  const [actionBusy, setActionBusy] = useState(false);
 
   const loadTasks = useCallback(async () => {
     if (!token || !selectedAgentId) return;
@@ -66,260 +82,389 @@ export default function TasksScreen() {
     setRefreshing(false);
   };
 
-  const tasksByStatus = useMemo(() => {
-    const grouped: Record<string, TaskItem[]> = {};
-    for (const s of STATUS_COLUMNS) grouped[s] = [];
-    for (const t of tasks) {
-      if (grouped[t.status]) grouped[t.status].push(t);
-      else grouped.todo.push(t);
-    }
-    return grouped;
-  }, [tasks]);
+  const generalTasks = useMemo(() => tasks.filter(isGeneralTask), [tasks]);
 
-  const handleTaskPress = (task: TaskItem) => {
-    Alert.alert(task.title, `Status: ${task.status}\nPriority: ${task.priority}`, [
-      {
-        text: 'Change Status',
-        onPress: () => {
-          const options = STATUS_COLUMNS.filter((s) => s !== task.status);
-          Alert.alert('Change Status', 'Select new status', [
-            ...options.map((s) => ({
-              text: STATUS_CONFIG[s].label,
-              onPress: () => {
-                if (token) updateTaskStatus(token, task.id, s);
-              },
-            })),
-            { text: 'Cancel', style: 'cancel' as const },
-          ]);
-        },
-      },
-      {
-        text: 'Delete',
-        style: 'destructive' as const,
-        onPress: () => {
-          Alert.alert('Delete Task', `Delete "${task.title}"?`, [
-            { text: 'Cancel', style: 'cancel' as const },
-            {
-              text: 'Delete',
-              style: 'destructive' as const,
-              onPress: () => {
-                if (token) deleteTask(token, task.id);
-              },
-            },
-          ]);
-        },
-      },
-      { text: 'Cancel', style: 'cancel' as const },
-    ]);
+  const tasksByStatus = useMemo(() => {
+    const grouped: Record<TaskItem['status'], TaskItem[]> = {
+      todo: [],
+      doing: [],
+      review: [],
+      done: [],
+      blocked: [],
+    };
+    for (const t of generalTasks) grouped[t.status].push(t);
+    return grouped;
+  }, [generalTasks]);
+
+  const selectedTask = useMemo(
+    () => generalTasks.find((t) => t.id === selectedTaskId) || null,
+    [generalTasks, selectedTaskId],
+  );
+
+  const timeline = useMemo(() => {
+    if (!selectedTaskId) return [];
+    return timelineByTask[selectedTaskId] || [];
+  }, [timelineByTask, selectedTaskId]);
+
+  useEffect(() => {
+    if (!panelOpen || !selectedTask || !token) return;
+    fetchTaskTimeline(token, selectedTask.id, selectedTask.topic_id, selectedAgentId || undefined);
+  }, [panelOpen, selectedTask, token, selectedAgentId, fetchTaskTimeline]);
+
+  const openTaskPanel = (task: TaskItem) => {
+    setSelectedTaskId(task.id);
+    setPanelOpen(true);
+    setTaskChatText('');
+  };
+
+  const closeTaskPanel = () => {
+    setPanelOpen(false);
+    setSelectedTaskId(null);
+    setTaskChatText('');
   };
 
   const handleCreate = async () => {
     const title = newTitle.trim();
-    if (!title || !token || !selectedAgentId) return;
-    await createTask(token, {
+    if (!title || !token || !selectedAgentId || creating) return;
+
+    setCreating(true);
+    const created = await createTask(token, {
       title,
-      task_type: newType,
+      description: newDesc.trim() || undefined,
+      task_type: 'general',
       owner_agent_id: selectedAgentId,
+      status: 'todo',
     });
+    setCreating(false);
+
+    if (!created) {
+      Alert.alert('Create failed', 'Please retry.');
+      return;
+    }
+
+    setCreateOpen(false);
     setNewTitle('');
-    setNewType('common');
-    setModalVisible(false);
+    setNewDesc('');
+  };
+
+  const runCurrent = async () => {
+    if (!selectedTask || !token || !selectedAgentId || actionBusy) return;
+    setActionBusy(true);
+    try {
+      await runTask(token, selectedTask, selectedAgentId);
+      await fetchTaskTimeline(token, selectedTask.id, selectedTask.topic_id, selectedAgentId);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Run failed';
+      Alert.alert('Run failed', msg);
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const reviewCurrent = async (action: 'approve' | 'reject' | 'block') => {
+    if (!selectedTask || !token || !selectedAgentId || actionBusy) return;
+    setActionBusy(true);
+    try {
+      await reviewTask(token, selectedTask.id, action, selectedAgentId);
+      await fetchTaskTimeline(token, selectedTask.id, selectedTask.topic_id, selectedAgentId);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Review failed';
+      Alert.alert('Review failed', msg);
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const deleteCurrent = () => {
+    if (!selectedTask || !token || actionBusy) return;
+    Alert.alert('Cancel task', `Delete task “${selectedTask.title}”?`, [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          setActionBusy(true);
+          await deleteTask(token, selectedTask.id, selectedAgentId || undefined);
+          setActionBusy(false);
+          closeTaskPanel();
+        },
+      },
+    ]);
+  };
+
+  const sendCurrentChat = async () => {
+    if (!selectedTask || !token || !selectedAgentId || actionBusy) return;
+    const text = taskChatText.trim();
+    if (!text) return;
+    setActionBusy(true);
+    try {
+      await sendTaskChat(token, selectedTask, selectedAgentId, text);
+      setTaskChatText('');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Send failed';
+      Alert.alert('Send failed', msg);
+    } finally {
+      setActionBusy(false);
+    }
   };
 
   if (!selectedAgentId) {
     return (
-      <View className="flex-1 items-center justify-center bg-background-light dark:bg-background-dark" style={styles.noAgent}>
+      <View style={styles.centerWrap}>
         <Ionicons name="person-outline" size={48} color="#94A3B8" />
-        <Text className="mt-4 text-gray-400 text-base font-inter" style={styles.noAgentText}>
-          Select an agent to view tasks
-        </Text>
+        <Text style={styles.centerText}>Select an agent to view tasks</Text>
       </View>
     );
   }
 
-  if (isLoading && tasks.length === 0) {
+  if (isLoading && generalTasks.length === 0) {
     return (
-      <View className="flex-1 items-center justify-center bg-background-light dark:bg-background-dark" style={styles.noAgent}>
+      <View style={styles.centerWrap}>
         <ActivityIndicator size="large" color="#6366F1" />
       </View>
     );
   }
 
   const renderTaskCard = ({ item }: { item: TaskItem }) => {
-    const prio = PRIORITY_CONFIG[item.priority] || PRIORITY_CONFIG.P3;
+    const cfg = STATUS_CONFIG[item.status];
     return (
       <TouchableOpacity
-        className="bg-white dark:bg-zinc-800 rounded-xl p-3 mb-2 shadow-sm"
         style={styles.taskCard}
-        activeOpacity={0.7}
-        onPress={() => handleTaskPress(item)}
+        activeOpacity={0.8}
+        onPress={() => openTaskPanel(item)}
       >
-        <Text
-          className="text-sm font-inter-semibold text-gray-900 dark:text-gray-100 mb-1"
-          style={styles.taskTitle}
-          numberOfLines={2}
-        >
-          {item.title}
-        </Text>
-
-        <View className="flex-row items-center mb-1.5 gap-1.5" style={styles.badgeRow}>
-          <View className={`px-1.5 py-0.5 rounded ${prio.bg}`} style={[styles.prioBadge, { backgroundColor: prio.bgColor }]}>
-            <Text className={`text-xs font-inter-semibold ${prio.text}`} style={{ fontSize: 12, fontWeight: '600', color: prio.textColor }}>{item.priority}</Text>
+        <View style={styles.cardHeaderRow}>
+          <Text style={styles.taskTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+          <View style={[styles.statusPill, { backgroundColor: cfg.bg }]}>
+            <Text style={[styles.statusPillText, { color: cfg.color }]}>{cfg.label}</Text>
           </View>
-          {item.task_type ? (
-            <View className="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30" style={styles.typeBadge}>
-              <Text className="text-xs font-inter text-blue-600 dark:text-blue-400" style={styles.typeText}>
-                {item.task_type}
-              </Text>
-            </View>
-          ) : null}
         </View>
-
         {item.description ? (
-          <Text
-            className="text-xs text-gray-500 dark:text-gray-400 font-inter mb-1"
-            style={styles.taskDesc}
-            numberOfLines={2}
-          >
+          <Text style={styles.taskDesc} numberOfLines={2}>
             {item.description}
           </Text>
         ) : null}
-
-        {item.created_at ? (
-          <Text className="text-xs text-gray-400 dark:text-gray-500 font-inter" style={styles.taskTime}>
-            {formatTimeAgo(item.created_at)}
+        <View style={styles.cardFooterRow}>
+          <Text style={styles.taskMeta}>{item.priority || 'P2'}</Text>
+          <Text style={styles.taskMeta}>
+            {item.created_at ? formatTimeAgo(item.created_at) : '-'}
           </Text>
-        ) : null}
+        </View>
       </TouchableOpacity>
     );
   };
 
+  const status = selectedTask ? selectedTask.status : 'todo';
+  const statusCfg = STATUS_CONFIG[status];
+
   return (
-    <View className="flex-1 bg-background-light dark:bg-background-dark" style={styles.root}>
+    <View style={styles.root}>
+      <View style={styles.topBar}>
+        <Text style={styles.topTitle}>General Task Panel</Text>
+        <Text style={styles.topSub}>{generalTasks.length} tasks</Text>
+      </View>
+
       <ScrollView
         horizontal
-        showsHorizontalScrollIndicator={false}
-        className="flex-1"
-        style={styles.scroll}
+        style={styles.columnsScroll}
         contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 12 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366F1" />
         }
       >
-        {STATUS_COLUMNS.map((status) => {
-          const config = STATUS_CONFIG[status];
-          const columnTasks = tasksByStatus[status] || [];
+        {STATUS_COLUMNS.map((statusKey) => {
+          const cfg = STATUS_CONFIG[statusKey];
+          const columnTasks = tasksByStatus[statusKey] || [];
           return (
-            <View key={status} className="mr-3" style={[styles.column, { width: 280, marginRight: 12 }]}>
-              {/* Column header */}
-              <View className={`flex-row items-center px-3 py-2 rounded-t-xl ${config.bg}`} style={[styles.colHeader, { backgroundColor: config.bgColor }]}>
-                <View className={`w-2.5 h-2.5 rounded-full mr-2 ${config.dot}`} style={[styles.colDot, { backgroundColor: config.dotColor }]} />
-                <Text className={`text-sm font-inter-semibold ${config.text}`} style={{ fontSize: 14, fontWeight: '600', color: config.textColor }}>
-                  {config.label}
-                </Text>
-                <View className="ml-auto bg-white/60 dark:bg-black/20 rounded-full px-2 py-0.5" style={styles.colCount}>
-                  <Text className={`text-xs font-inter-semibold ${config.text}`} style={{ fontSize: 12, fontWeight: '600', color: config.textColor }}>
-                    {columnTasks.length}
-                  </Text>
-                </View>
+            <View key={statusKey} style={styles.column}>
+              <View style={[styles.columnHeader, { backgroundColor: cfg.bg }]}>
+                <Text style={[styles.columnTitle, { color: cfg.color }]}>{cfg.label}</Text>
+                <Text style={[styles.columnCount, { color: cfg.color }]}>{columnTasks.length}</Text>
               </View>
-
-              {/* Column body */}
-              <View className="flex-1 bg-gray-50 dark:bg-zinc-900 rounded-b-xl p-2" style={styles.colBody}>
-                <FlatList
-                  data={columnTasks}
-                  keyExtractor={(item) => item.id}
-                  renderItem={renderTaskCard}
-                  showsVerticalScrollIndicator={false}
-                  ListEmptyComponent={
-                    <View className="items-center py-8" style={styles.colEmpty}>
-                      <Text className="text-gray-400 font-inter text-sm" style={styles.colEmptyText}>No tasks</Text>
-                    </View>
-                  }
-                />
-              </View>
+              <FlatList
+                data={columnTasks}
+                keyExtractor={(item) => item.id}
+                renderItem={renderTaskCard}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ padding: 8, paddingBottom: 20 }}
+                ListEmptyComponent={<Text style={styles.emptyColumn}>No tasks</Text>}
+              />
             </View>
           );
         })}
       </ScrollView>
 
-      {/* FAB */}
-      <TouchableOpacity
-        className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-primary items-center justify-center shadow-lg"
-        style={styles.fab}
-        onPress={() => setModalVisible(true)}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="add" size={28} color="#FFFFFF" />
+      {!!error && <Text style={styles.errorText}>{error}</Text>}
+
+      <TouchableOpacity style={styles.fab} onPress={() => setCreateOpen(true)}>
+        <Ionicons name="add" size={28} color="#fff" />
       </TouchableOpacity>
 
-      {/* Create Task Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View className="flex-1 justify-end bg-black/40" style={styles.modalOverlay}>
-          <View className="bg-white dark:bg-zinc-800 rounded-t-2xl p-6" style={styles.modalContent}>
-            <View className="flex-row items-center justify-between mb-4" style={styles.modalHeader}>
-              <Text className="text-lg font-inter-semibold text-gray-900 dark:text-gray-100" style={styles.modalTitle}>
-                New Task
-              </Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#94A3B8" />
+      <Modal
+        visible={createOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setCreateOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>New General Task</Text>
+              <TouchableOpacity onPress={() => setCreateOpen(false)}>
+                <Ionicons name="close" size={22} color="#94A3B8" />
               </TouchableOpacity>
             </View>
-
-            <Text className="text-sm font-inter text-gray-500 dark:text-gray-400 mb-1" style={styles.modalLabel}>
-              Title
-            </Text>
             <TextInput
-              className="bg-gray-50 dark:bg-zinc-700 rounded-xl px-4 py-3 text-base font-inter text-gray-900 dark:text-gray-100 mb-4"
               style={styles.modalInput}
-              placeholder="Task title"
-              placeholderTextColor="#9CA3AF"
+              placeholder="Title"
               value={newTitle}
               onChangeText={setNewTitle}
               autoFocus
             />
-
-            <Text className="text-sm font-inter text-gray-500 dark:text-gray-400 mb-2" style={styles.modalLabel}>
-              Type
-            </Text>
-            <View className="flex-row gap-2 mb-6" style={styles.typeRow}>
-              {TASK_TYPES.map((t) => (
-                <TouchableOpacity
-                  key={t}
-                  className={`flex-1 py-2.5 rounded-xl items-center ${
-                    newType === t
-                      ? 'bg-primary'
-                      : 'bg-gray-100 dark:bg-zinc-700'
-                  }`}
-                  style={[styles.typeButton, newType === t ? styles.typeActive : styles.typeInactive]}
-                  onPress={() => setNewType(t)}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    className={`text-sm font-inter-semibold ${
-                      newType === t
-                        ? 'text-white'
-                        : 'text-gray-600 dark:text-gray-300'
-                    }`}
-                    style={newType === t ? styles.typeTextActive : styles.typeTextInactive}
-                  >
-                    {t}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
+            <TextInput
+              style={[styles.modalInput, { height: 90 }]}
+              placeholder="Description (optional)"
+              value={newDesc}
+              onChangeText={setNewDesc}
+              multiline
+            />
             <TouchableOpacity
-              className={`rounded-xl py-3.5 items-center ${
-                newTitle.trim() ? 'bg-primary' : 'bg-gray-300 dark:bg-zinc-600'
-              }`}
-              style={[styles.createButton, newTitle.trim() ? styles.createEnabled : styles.createDisabled]}
+              style={[styles.modalPrimaryBtn, (!newTitle.trim() || creating) && { opacity: 0.6 }]}
               onPress={handleCreate}
-              disabled={!newTitle.trim()}
-              activeOpacity={0.8}
+              disabled={!newTitle.trim() || creating}
             >
-              <Text className="text-white font-inter-semibold text-base" style={styles.createText}>Create</Text>
+              <Text style={styles.modalPrimaryText}>{creating ? 'Creating...' : 'Create'}</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={panelOpen} animationType="slide" transparent onRequestClose={closeTaskPanel}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { maxHeight: '88%' }]}>
+            {!selectedTask ? (
+              <View style={styles.centerWrap}>
+                <ActivityIndicator size="small" color="#6366F1" />
+              </View>
+            ) : (
+              <>
+                <View style={styles.modalHeaderRow}>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={styles.panelTitle} numberOfLines={2}>
+                      {selectedTask.title}
+                    </Text>
+                    <View
+                      style={[
+                        styles.statusPill,
+                        { marginTop: 6, alignSelf: 'flex-start', backgroundColor: statusCfg.bg },
+                      ]}
+                    >
+                      <Text style={[styles.statusPillText, { color: statusCfg.color }]}>
+                        {statusCfg.label}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity onPress={closeTaskPanel}>
+                    <Ionicons name="close" size={22} color="#94A3B8" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.panelActionRow}>
+                  {(selectedTask.status === 'todo' || selectedTask.status === 'doing') && (
+                    <TouchableOpacity
+                      style={styles.actionPrimary}
+                      onPress={runCurrent}
+                      disabled={actionBusy}
+                    >
+                      <Text style={styles.actionPrimaryText}>Run</Text>
+                    </TouchableOpacity>
+                  )}
+                  {selectedTask.status === 'review' && (
+                    <>
+                      <TouchableOpacity
+                        style={styles.actionPrimary}
+                        onPress={() => reviewCurrent('approve')}
+                        disabled={actionBusy}
+                      >
+                        <Text style={styles.actionPrimaryText}>Approve</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.actionWarn}
+                        onPress={() => reviewCurrent('reject')}
+                        disabled={actionBusy}
+                      >
+                        <Text style={styles.actionWarnText}>Reject</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.actionWarn}
+                        onPress={() => reviewCurrent('block')}
+                        disabled={actionBusy}
+                      >
+                        <Text style={styles.actionWarnText}>Block</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                  <TouchableOpacity
+                    style={styles.actionDanger}
+                    onPress={deleteCurrent}
+                    disabled={actionBusy}
+                  >
+                    <Text style={styles.actionDangerText}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.timelineWrap}>
+                  {timelineLoadingTaskId === selectedTask.id ? (
+                    <View style={styles.centerWrap}>
+                      <ActivityIndicator size="small" color="#6366F1" />
+                    </View>
+                  ) : timeline.length === 0 ? (
+                    <Text style={styles.emptyTimeline}>No timeline messages yet</Text>
+                  ) : (
+                    <ScrollView contentContainerStyle={{ paddingBottom: 8 }}>
+                      {timeline.map((m: Message) => {
+                        const isHuman = m.sender_type === 'human';
+                        const stamp = (m.timestamp || '').trim()
+                          ? m.timestamp
+                          : new Date().toISOString();
+                        return (
+                          <View
+                            key={m.message_id}
+                            style={[styles.msgItem, isHuman ? styles.msgHuman : styles.msgAgent]}
+                          >
+                            <Text style={styles.msgSender}>{m.sender_id}</Text>
+                            <Text style={styles.msgContent}>{m.content}</Text>
+                            <Text style={styles.msgTime}>{formatTime(stamp)}</Text>
+                          </View>
+                        );
+                      })}
+                    </ScrollView>
+                  )}
+                </View>
+
+                <View style={styles.inputRow}>
+                  <TextInput
+                    style={styles.chatInput}
+                    placeholder="Send to task..."
+                    value={taskChatText}
+                    onChangeText={setTaskChatText}
+                    multiline
+                  />
+                  <TouchableOpacity
+                    style={[
+                      styles.sendBtn,
+                      (!taskChatText.trim() || actionBusy) && { opacity: 0.6 },
+                    ]}
+                    onPress={sendCurrentChat}
+                    disabled={!taskChatText.trim() || actionBusy}
+                  >
+                    <Ionicons name="send" size={16} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -328,198 +473,202 @@ export default function TasksScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
+  root: { flex: 1, backgroundColor: '#F8FAFC' },
+  centerWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  centerText: { marginTop: 16, fontSize: 16, color: '#94A3B8' },
+
+  topBar: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  scroll: {
-    flex: 1,
-  },
+  topTitle: { fontSize: 17, fontWeight: '700', color: '#0F172A' },
+  topSub: { marginTop: 2, fontSize: 12, color: '#64748B' },
+
+  columnsScroll: { flex: 1 },
   column: {
+    width: 290,
     marginRight: 12,
-  },
-  colHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-  },
-  colDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
-  },
-  colCount: {
-    marginLeft: 'auto',
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    borderRadius: 9999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  colBody: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-    padding: 8,
-  },
-  colEmpty: {
-    alignItems: 'center',
-    paddingVertical: 32,
-  },
-  colEmptyText: {
-    color: '#9CA3AF',
-    fontSize: 14,
-  },
-  taskCard: {
-    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-  },
-  taskTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-    gap: 6,
-  },
-  prioBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  typeBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    backgroundColor: '#EFF6FF',
-  },
-  typeText: {
-    fontSize: 12,
-    color: '#2563EB',
-  },
-  taskDesc: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  taskTime: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  noAgent: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
-  },
-  noAgentText: {
-    marginTop: 16,
-    color: '#9CA3AF',
-    fontSize: 16,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#6366F1',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  modalContent: {
+    overflow: 'hidden',
     backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 24,
   },
-  modalHeader: {
+  columnHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+  columnTitle: { fontSize: 13, fontWeight: '700' },
+  columnCount: { fontSize: 12, fontWeight: '700' },
+  emptyColumn: { paddingVertical: 20, textAlign: 'center', color: '#94A3B8', fontSize: 12 },
+
+  taskCard: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
   },
-  modalLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  taskTitle: { flex: 1, fontSize: 13, fontWeight: '600', color: '#111827', marginRight: 8 },
+  statusPill: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  modalInput: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#111827',
-    marginBottom: 16,
+  statusPillText: { fontSize: 10, fontWeight: '700' },
+  taskDesc: { marginTop: 6, fontSize: 12, color: '#64748B' },
+  cardFooterRow: { marginTop: 8, flexDirection: 'row', justifyContent: 'space-between' },
+  taskMeta: { fontSize: 11, color: '#94A3B8' },
+
+  errorText: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 86,
+    textAlign: 'center',
+    fontSize: 12,
+    color: '#B91C1C',
   },
-  typeRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 24,
+
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#4F46E5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 5,
   },
-  typeButton: {
+
+  modalOverlay: {
     flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  modalSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 14,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  modalTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    fontSize: 14,
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  modalPrimaryBtn: {
+    marginTop: 6,
+    backgroundColor: '#4F46E5',
+    borderRadius: 10,
+    paddingVertical: 12,
     alignItems: 'center',
   },
-  typeActive: {
-    backgroundColor: '#6366F1',
+  modalPrimaryText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
+  panelTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
+  panelActionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
   },
-  typeInactive: {
-    backgroundColor: '#F3F4F6',
+  actionPrimary: {
+    backgroundColor: '#EEF2FF',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
-  typeTextActive: {
-    color: '#fff',
+  actionPrimaryText: { color: '#4338CA', fontSize: 12, fontWeight: '700' },
+  actionWarn: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  actionWarnText: { color: '#B45309', fontSize: 12, fontWeight: '700' },
+  actionDanger: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  actionDangerText: { color: '#B91C1C', fontSize: 12, fontWeight: '700' },
+
+  timelineWrap: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    minHeight: 180,
+    maxHeight: 360,
+    padding: 8,
+    marginBottom: 10,
+  },
+  emptyTimeline: { textAlign: 'center', color: '#94A3B8', marginTop: 20, fontSize: 12 },
+  msgItem: {
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  msgHuman: { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE' },
+  msgAgent: { backgroundColor: '#fff', borderColor: '#E2E8F0' },
+  msgSender: { fontSize: 11, fontWeight: '700', color: '#475569' },
+  msgContent: { marginTop: 4, fontSize: 13, color: '#1E293B' },
+  msgTime: { marginTop: 4, fontSize: 10, color: '#94A3B8' },
+
+  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  chatInput: {
+    flex: 1,
+    minHeight: 40,
+    maxHeight: 90,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: '#fff',
     fontSize: 14,
-    fontWeight: '600',
+    color: '#111827',
   },
-  typeTextInactive: {
-    color: '#4B5563',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  createButton: {
-    borderRadius: 12,
-    paddingVertical: 14,
+  sendBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
-  },
-  createEnabled: {
-    backgroundColor: '#6366F1',
-  },
-  createDisabled: {
-    backgroundColor: '#D1D5DB',
-  },
-  createText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    justifyContent: 'center',
+    backgroundColor: '#4F46E5',
+    marginBottom: 1,
   },
 });

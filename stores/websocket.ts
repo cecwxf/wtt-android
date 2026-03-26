@@ -1,6 +1,12 @@
 import { create } from 'zustand';
-import { WebSocketManager, type WsMessage, type WsState, type WsAction } from '@/lib/ws/WebSocketManager';
+import {
+  WebSocketManager,
+  type WsMessage,
+  type WsState,
+  type WsAction,
+} from '@/lib/ws/WebSocketManager';
 import { useMessagesStore } from './messages';
+import { useTasksStore } from './tasks';
 import type { Message } from '@/lib/api/wtt-client';
 
 interface WebSocketState {
@@ -9,7 +15,10 @@ interface WebSocketState {
 
   initialize: (url: string, token: string) => void;
   disconnect: () => void;
-  sendAction: <T = unknown>(action: WsAction, payload?: Record<string, unknown>) => Promise<T | null>;
+  sendAction: <T = unknown>(
+    action: WsAction,
+    payload?: Record<string, unknown>,
+  ) => Promise<T | null>;
   updateToken: (token: string) => void;
 }
 
@@ -46,7 +55,10 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
         }
         // Task status changes trigger a refresh in the tasks store
         if (msg.type === 'task_status') {
-          // The tasks screen polls via its own refresh — this is a hint
+          useTasksStore
+            .getState()
+            .refreshLast()
+            .catch(() => {});
         }
       },
       onStateChange: (state: WsState) => {
@@ -63,7 +75,10 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
     set({ _manager: null, wsState: 'disconnected' });
   },
 
-  sendAction: async <T = unknown>(action: WsAction, payload?: Record<string, unknown>): Promise<T | null> => {
+  sendAction: async <T = unknown>(
+    action: WsAction,
+    payload?: Record<string, unknown>,
+  ): Promise<T | null> => {
     const manager = get()._manager;
     if (!manager) return null;
     return manager.sendAction<T>(action, payload);
