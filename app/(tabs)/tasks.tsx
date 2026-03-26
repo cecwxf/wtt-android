@@ -16,6 +16,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/auth';
 import { useAgentsStore } from '@/stores/agents';
+import { useWebSocketStore } from '@/stores/websocket';
 import { useTasksStore, type TaskItem } from '@/stores/tasks';
 import { formatTimeAgo, formatTime } from '@/lib/time';
 import type { Message } from '@/lib/api/wtt-client';
@@ -40,6 +41,7 @@ function isGeneralTask(task: TaskItem): boolean {
 export default function TasksScreen() {
   const token = useAuthStore((s) => s.token);
   const selectedAgentId = useAgentsStore((s) => s.selectedAgentId);
+  const wsLastEventAt = useWebSocketStore((s) => s.lastEventAt);
 
   const {
     tasks,
@@ -115,17 +117,18 @@ export default function TasksScreen() {
 
   useEffect(() => {
     if (!panelOpen || !selectedTask || !token) return;
-    const timer = setInterval(() => {
-      fetchTaskTimeline(
-        token,
-        selectedTask.id,
-        selectedTask.topic_id,
-        selectedAgentId || undefined,
-      );
-      loadTasks();
-    }, 10000);
-    return () => clearInterval(timer);
-  }, [panelOpen, selectedTask, token, selectedAgentId, fetchTaskTimeline, loadTasks]);
+    if (!wsLastEventAt) return;
+    fetchTaskTimeline(token, selectedTask.id, selectedTask.topic_id, selectedAgentId || undefined);
+    loadTasks();
+  }, [
+    panelOpen,
+    selectedTask,
+    token,
+    selectedAgentId,
+    fetchTaskTimeline,
+    loadTasks,
+    wsLastEventAt,
+  ]);
 
   const openTaskPanel = (task: TaskItem) => {
     setSelectedTaskId(task.id);

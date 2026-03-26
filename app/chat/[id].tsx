@@ -88,11 +88,11 @@ export default function ChatScreen() {
     }
   }, [token, topicId, fetchMessages]);
 
-  // Auto-refresh messages (longer interval when WS is connected)
+  // WS-first: only poll when WS is disconnected (fallback mode)
   useEffect(() => {
     if (!token || !topicId) return;
-    const ms = wsState === 'connected' ? 30000 : 10000;
-    const interval = setInterval(() => fetchMessages(token, topicId), ms);
+    if (wsState === 'connected') return;
+    const interval = setInterval(() => fetchMessages(token, topicId), 10000);
     return () => clearInterval(interval);
   }, [token, topicId, fetchMessages, wsState]);
 

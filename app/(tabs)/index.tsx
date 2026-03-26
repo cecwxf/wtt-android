@@ -70,6 +70,7 @@ export default function FeedScreen() {
   const loadSelectedAgent = useAgentsStore((s) => s.loadSelectedAgent);
 
   const wsState = useWebSocketStore((s) => s.wsState);
+  const wsLastEventAt = useWebSocketStore((s) => s.lastEventAt);
 
   const [topics, setTopics] = useState<FeedTopic[]>([]);
   const [p2pRequests, setP2pRequests] = useState<P2PRequestItem[]>([]);
@@ -160,9 +161,9 @@ export default function FeedScreen() {
 
   useEffect(() => {
     if (!token || !selectedAgentId) return;
-    const timer = setInterval(fetchFeedData, 15000);
-    return () => clearInterval(timer);
-  }, [token, selectedAgentId, fetchFeedData]);
+    if (!wsLastEventAt) return;
+    fetchFeedData();
+  }, [token, selectedAgentId, wsLastEventAt, fetchFeedData]);
 
   const onRefresh = async () => {
     setRefreshing(true);

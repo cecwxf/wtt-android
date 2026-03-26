@@ -12,6 +12,7 @@ import type { Message } from '@/lib/api/wtt-client';
 interface WebSocketState {
   wsState: WsState;
   _manager: WebSocketManager | null;
+  lastEventAt: number;
 
   initialize: (url: string, token: string) => void;
   disconnect: () => void;
@@ -39,6 +40,7 @@ function wsMessageToMessage(m: NonNullable<WsMessage['message']>): Message {
 export const useWebSocketStore = create<WebSocketState>((set, get) => ({
   wsState: 'disconnected',
   _manager: null,
+  lastEventAt: 0,
 
   initialize: (url: string, token: string) => {
     const existing = get()._manager;
@@ -48,11 +50,15 @@ export const useWebSocketStore = create<WebSocketState>((set, get) => ({
       url,
       token,
       onMessage: (msg: WsMessage) => {
+        set({ lastEventAt: Date.now() });
+
         // Real-time incoming message
         if (msg.message) {
           const converted = wsMessageToMessage(msg.message);
           useMessagesStore.getState().addMessage(converted.topic_id, converted);
+          useTasksStore.getState().appendTimelineMessage(converted);
         }
+
         // Task status changes trigger a refresh in the tasks store
         if (msg.type === 'task_status') {
           useTasksStore

@@ -67,6 +67,7 @@ interface TasksState {
     agentId?: string,
   ) => Promise<void>;
   sendTaskChat: (token: string, task: TaskItem, senderId: string, message: string) => Promise<void>;
+  appendTimelineMessage: (message: Message) => void;
 }
 
 async function parseErr(response: Response, fallback: string): Promise<string> {
@@ -323,5 +324,23 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       set({ error: msg });
       throw new Error(msg);
     }
+  },
+
+  appendTimelineMessage: (message) => {
+    const state = get();
+    const impacted = state.tasks.filter((t) => t.topic_id && t.topic_id === message.topic_id);
+    if (impacted.length === 0) return;
+
+    set((s) => {
+      const next = { ...s.timelineByTask };
+      for (const task of impacted) {
+        const existing = next[task.id] || [];
+        if (existing.some((m) => m.message_id === message.message_id)) continue;
+        next[task.id] = [...existing, message].sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+        );
+      }
+      return { timelineByTask: next };
+    });
   },
 }));
