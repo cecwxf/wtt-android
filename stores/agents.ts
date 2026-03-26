@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { WTT_API_URL } from '@/lib/api/base-url';
+import { normalizeAndFilterAgents } from '@/lib/agents';
 
 export interface Agent {
   id: string;
@@ -37,17 +38,21 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
       });
       if (res.ok) {
         const data = await res.json();
-        const agents = (data.agents || data || []).map((a: Record<string, unknown>) => ({
-          id: a.id || a.agent_id,
-          agent_id: a.agent_id || a.id,
-          display_name: (a.display_name as string) || (a.name as string) || (a.agent_id as string),
-          is_primary: a.is_primary,
-          api_key: a.api_key,
-          invite_code: a.invite_code,
-        }));
+        const agents = normalizeAndFilterAgents(data);
+        const previousSelected = get().selectedAgentId;
+
         set({ agents, isLoading: false });
-        // Auto-select first agent if none selected
-        if (!get().selectedAgentId && agents.length > 0) {
+
+        if (agents.length === 0) {
+          await SecureStore.deleteItemAsync(SELECTED_AGENT_KEY);
+          set({ selectedAgentId: null });
+          return;
+        }
+
+        const stillValid =
+          previousSelected && agents.some((agent) => agent.agent_id === previousSelected);
+
+        if (!stillValid) {
           await get().selectAgent(agents[0].agent_id);
         }
       }

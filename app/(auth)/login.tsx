@@ -45,14 +45,22 @@ export default function LoginScreen() {
       <View className="flex-1 justify-center px-8" style={styles.inner}>
         {/* Logo */}
         <View className="items-center mb-12" style={styles.logoArea}>
-          <Text className="text-4xl font-inter-bold text-primary" style={styles.title}>WTT</Text>
-          <Text className="text-base text-gray-500 dark:text-gray-400 mt-2 font-inter" style={styles.subtitle}>
+          <Text className="text-4xl font-inter-bold text-primary" style={styles.title}>
+            WTT
+          </Text>
+          <Text
+            className="text-base text-gray-500 dark:text-gray-400 mt-2 font-inter"
+            style={styles.subtitle}
+          >
             Want To Talk
           </Text>
         </View>
 
         {/* Email */}
-        <Text className="text-sm font-inter text-gray-600 dark:text-gray-400 mb-1 ml-1" style={styles.label}>
+        <Text
+          className="text-sm font-inter text-gray-600 dark:text-gray-400 mb-1 ml-1"
+          style={styles.label}
+        >
           Email
         </Text>
         <TextInput
@@ -68,11 +76,14 @@ export default function LoginScreen() {
         />
 
         {/* Password */}
-        <Text className="text-sm font-inter text-gray-600 dark:text-gray-400 mb-1 ml-1" style={styles.label}>
+        <Text
+          className="text-sm font-inter text-gray-600 dark:text-gray-400 mb-1 ml-1"
+          style={styles.label}
+        >
           Password
         </Text>
         <TextInput
-          className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-6 font-inter"
+          className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-2 font-inter"
           style={styles.passwordInput}
           placeholder="Password"
           placeholderTextColor="#9CA3AF"
@@ -80,6 +91,14 @@ export default function LoginScreen() {
           onChangeText={setPassword}
           secureTextEntry
         />
+
+        <View style={styles.forgotRow}>
+          <Link href="/(auth)/reset-password" asChild>
+            <TouchableOpacity>
+              <Text style={styles.forgotLink}>Forgot password?</Text>
+            </TouchableOpacity>
+          </Link>
+        </View>
 
         {/* Login Button */}
         <TouchableOpacity
@@ -100,22 +119,38 @@ export default function LoginScreen() {
 
         {/* OAuth Buttons */}
         <View className="flex-row gap-3 mb-6" style={styles.oauthRow}>
-          <TouchableOpacity className="flex-1 bg-gray-900 dark:bg-zinc-700 rounded-xl py-3 items-center" style={styles.githubButton}>
-            <Text className="text-white font-inter text-sm" style={styles.oauthText}>GitHub</Text>
+          <TouchableOpacity
+            className="flex-1 bg-gray-900 dark:bg-zinc-700 rounded-xl py-3 items-center"
+            style={styles.githubButton}
+          >
+            <Text className="text-white font-inter text-sm" style={styles.oauthText}>
+              GitHub
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity className="flex-1 bg-red-500 rounded-xl py-3 items-center" style={styles.googleButton}>
-            <Text className="text-white font-inter text-sm" style={styles.oauthText}>Google</Text>
+          <TouchableOpacity
+            className="flex-1 bg-red-500 rounded-xl py-3 items-center"
+            style={styles.googleButton}
+          >
+            <Text className="text-white font-inter text-sm" style={styles.oauthText}>
+              Google
+            </Text>
           </TouchableOpacity>
         </View>
 
         {/* Register Link */}
         <View className="flex-row justify-center" style={styles.registerRow}>
-          <Text className="text-gray-500 dark:text-gray-400 font-inter text-sm" style={styles.registerText}>
+          <Text
+            className="text-gray-500 dark:text-gray-400 font-inter text-sm"
+            style={styles.registerText}
+          >
             Don&apos;t have an account?{' '}
           </Text>
           <Link href="/(auth)/register" asChild>
             <TouchableOpacity>
-              <Text className="text-primary font-inter-semibold text-sm" style={styles.registerLink}>
+              <Text
+                className="text-primary font-inter-semibold text-sm"
+                style={styles.registerLink}
+              >
                 Sign Up
               </Text>
             </TouchableOpacity>
@@ -176,7 +211,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: '#111827',
-    marginBottom: 24,
+    marginBottom: 8,
+  },
+  forgotRow: {
+    alignItems: 'flex-end',
+    marginBottom: 18,
+  },
+  forgotLink: {
+    color: '#6366F1',
+    fontSize: 13,
+    fontWeight: '600',
   },
   signInButton: {
     backgroundColor: '#6366F1',

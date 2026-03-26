@@ -3,58 +3,58 @@ import { WTT_API_URL as API_URL } from '@/lib/api/base-url';
 const WTT_API_URL = API_URL;
 
 export interface Topic {
-  id: string
-  name: string
-  description: string
-  type: 'broadcast' | 'discussion' | 'p2p' | 'collaborative'
-  visibility: 'public' | 'private'
-  join_method: 'open' | 'invite_only'
-  creator_agent_id: string
-  created_at: string
-  is_active: boolean
-  member_count?: number
-  my_role?: 'owner' | 'admin' | 'member' | 'observer'
+  id: string;
+  name: string;
+  description: string;
+  type: 'broadcast' | 'discussion' | 'p2p' | 'collaborative';
+  visibility: 'public' | 'private';
+  join_method: 'open' | 'invite_only';
+  creator_agent_id: string;
+  created_at: string;
+  is_active: boolean;
+  member_count?: number;
+  my_role?: 'owner' | 'admin' | 'member' | 'observer';
 }
 
 export interface Message {
-  message_id: string
-  topic_id: string
-  sender_id: string
-  sender_type: 'human' | 'agent'
-  source: 'im' | 'topic'
-  content_type: string
-  semantic_type: string
-  content: string
-  timestamp: string
-  reply_to?: string
+  message_id: string;
+  topic_id: string;
+  sender_id: string;
+  sender_type: 'human' | 'agent';
+  source: 'im' | 'topic';
+  content_type: string;
+  semantic_type: string;
+  content: string;
+  timestamp: string;
+  reply_to?: string;
 }
 
 export interface Agent {
-  agent_id: string
-  name: string
-  description?: string
-  created_at: string
+  agent_id: string;
+  name: string;
+  description?: string;
+  created_at: string;
 }
 
 export class WTTApiClient {
-  private baseUrl: string
-  private token: string | null = null
+  private baseUrl: string;
+  private token: string | null = null;
 
   constructor(baseUrl: string) {
-    this.baseUrl = baseUrl
+    this.baseUrl = baseUrl;
   }
 
   setToken(token: string) {
-    this.token = token
+    this.token = token;
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-    }
+    };
 
     if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`
+      headers['Authorization'] = `Bearer ${this.token}`;
     }
 
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -63,75 +63,96 @@ export class WTTApiClient {
         ...headers,
         ...(options.headers as Record<string, string>),
       },
-    })
+    });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Unknown error' }))
-      throw new Error(error.detail || `HTTP ${response.status}`)
+      const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(error.detail || `HTTP ${response.status}`);
     }
 
-    return response.json()
+    return response.json();
   }
 
   // Auth
-  async register(agentId: string, password: string, name: string) {
+  async register(displayName: string, email: string, password: string) {
     return this.request('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ agent_id: agentId, password, name }),
-    })
+      body: JSON.stringify({
+        display_name: displayName,
+        email,
+        password,
+      }),
+    });
   }
 
-  async login(agentId: string, password: string) {
+  async login(email: string, password: string) {
     return this.request<{ access_token: string; token_type: string }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ agent_id: agentId, password }),
-    })
+      body: JSON.stringify({ email, password }),
+    });
+  }
+
+  async requestPasswordReset(email: string) {
+    return this.request<{ ok: boolean; message: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async confirmPasswordReset(token: string, newPassword: string) {
+    return this.request<{ ok: boolean; message: string }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, new_password: newPassword }),
+    });
   }
 
   // Topics
   async listTopics(): Promise<Topic[]> {
-    return this.request<Topic[]>('/topics/')
+    return this.request<Topic[]>('/topics/');
   }
 
   async getTopic(topicId: string): Promise<Topic> {
-    return this.request<Topic>(`/topics/${topicId}`)
+    return this.request<Topic>(`/topics/${topicId}`);
   }
 
-  async createTopic(data: {
-    name: string
-    description: string
-    type: string
-    visibility: string
-    join_method: string
-    creator_agent_id?: string
-  }, userToken?: string): Promise<Topic> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  async createTopic(
+    data: {
+      name: string;
+      description: string;
+      type: string;
+      visibility: string;
+      join_method: string;
+      creator_agent_id?: string;
+    },
+    userToken?: string,
+  ): Promise<Topic> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (userToken) {
-      headers['Authorization'] = `Bearer ${userToken}`
+      headers['Authorization'] = `Bearer ${userToken}`;
     } else if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`
+      headers['Authorization'] = `Bearer ${this.token}`;
     }
     const res = await fetch(`${this.baseUrl}/topics/`, {
       method: 'POST',
       headers,
       body: JSON.stringify(data),
-    })
+    });
     if (!res.ok) {
-      const error = await res.json().catch(() => ({ detail: 'Unknown error' }))
-      throw new Error(error.detail || `HTTP ${res.status}`)
+      const error = await res.json().catch(() => ({ detail: 'Unknown error' }));
+      throw new Error(error.detail || `HTTP ${res.status}`);
     }
-    return res.json()
+    return res.json();
   }
 
   async deleteTopic(topicId: string, agentId?: string): Promise<void> {
-    const query = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : ''
+    const query = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : '';
     return this.request(`/topics/${topicId}${query}`, {
       method: 'DELETE',
-    })
+    });
   }
 
   async searchTopics(query: string): Promise<Topic[]> {
-    return this.request<Topic[]>(`/topics/search?query=${encodeURIComponent(query)}`)
+    return this.request<Topic[]>(`/topics/search?query=${encodeURIComponent(query)}`);
   }
 
   // Channels (Subscriptions)
@@ -139,64 +160,66 @@ export class WTTApiClient {
     if (agentId) {
       return this.request(`/topics/${topicId}/join?agent_id=${encodeURIComponent(agentId)}`, {
         method: 'POST',
-      })
+      });
     }
     // fallback legacy
-    return this.request(`/channels/${topicId}/join`, { method: 'POST' })
+    return this.request(`/channels/${topicId}/join`, { method: 'POST' });
   }
 
   async leaveTopic(topicId: string, agentId?: string): Promise<void> {
     if (agentId) {
       return this.request(`/topics/${topicId}/leave?agent_id=${encodeURIComponent(agentId)}`, {
         method: 'POST',
-      })
+      });
     }
     // fallback legacy
-    return this.request(`/channels/${topicId}/leave`, { method: 'POST' })
+    return this.request(`/channels/${topicId}/leave`, { method: 'POST' });
   }
 
   async getSubscribedTopics(): Promise<Topic[]> {
-    return this.request<Topic[]>('/topics/subscribed')
+    return this.request<Topic[]>('/topics/subscribed');
   }
 
-  async getTopicMembers(topicId: string): Promise<Array<{ agent_id: string; display_name?: string; role?: string }>> {
-    return this.request(`/topics/${topicId}/members`)
+  async getTopicMembers(
+    topicId: string,
+  ): Promise<{ agent_id: string; display_name?: string; role?: string }[]> {
+    return this.request(`/topics/${topicId}/members`);
   }
 
   // Messages
   async publishMessage(
     topicId: string,
     data: {
-      content: string
-      content_type?: string
-      semantic_type?: string
-      reply_to?: string
-      sender_type?: 'HUMAN' | 'AGENT' | 'human' | 'agent'
-      sender_id?: string
-      metadata?: Record<string, unknown>
-    }
+      content: string;
+      content_type?: string;
+      semantic_type?: string;
+      reply_to?: string;
+      sender_type?: 'HUMAN' | 'AGENT' | 'human' | 'agent';
+      sender_id?: string;
+      metadata?: Record<string, unknown>;
+    },
   ): Promise<Message> {
     return this.request<Message>(`/topics/${topicId}/messages`, {
       method: 'POST',
       body: JSON.stringify(data),
-    })
+    });
   }
 
   async pollMessages(): Promise<Message[]> {
-    return this.request<Message[]>('/messages/poll')
+    return this.request<Message[]>('/messages/poll');
   }
 
   async getTopicMessages(
     topicId: string,
     limit: number = 50,
-    options?: { before?: string; offset?: number; agentId?: string }
+    options?: { before?: string; offset?: number; agentId?: string },
   ): Promise<Message[]> {
-    const params = new URLSearchParams()
-    params.set('limit', String(limit))
-    if (options?.before) params.set('before', options.before)
-    if (typeof options?.offset === 'number') params.set('offset', String(options.offset))
-    if (options?.agentId) params.set('agent_id', options.agentId)
-    return this.request<Message[]>(`/topics/${topicId}/messages?${params.toString()}`)
+    const params = new URLSearchParams();
+    params.set('limit', String(limit));
+    if (options?.before) params.set('before', options.before);
+    if (typeof options?.offset === 'number') params.set('offset', String(options.offset));
+    if (options?.agentId) params.set('agent_id', options.agentId);
+    return this.request<Message[]>(`/topics/${topicId}/messages?${params.toString()}`);
   }
 
   // P2P
@@ -204,31 +227,31 @@ export class WTTApiClient {
     return this.request<Message>('/messages/p2p', {
       method: 'POST',
       body: JSON.stringify({ target_agent_id: targetAgentId, content }),
-    })
+    });
   }
 
   // Feed
   async getFeed(limit: number = 50): Promise<Message[]> {
-    return this.request<Message[]>(`/feed?limit=${limit}`)
+    return this.request<Message[]>(`/feed?limit=${limit}`);
   }
 
   // Agents
   async getAgent(agentId: string): Promise<Agent> {
-    return this.request<Agent>(`/agents/${agentId}`)
+    return this.request<Agent>(`/agents/${agentId}`);
   }
 
   async renameAgent(agentId: string, displayName: string): Promise<void> {
     await this.request(`/agents/${encodeURIComponent(agentId)}/set-name`, {
       method: 'POST',
       body: JSON.stringify({ display_name: displayName }),
-    })
+    });
   }
 
   async unclaimAgent(agentId: string): Promise<void> {
     await this.request(`/agents/${encodeURIComponent(agentId)}`, {
       method: 'DELETE',
-    })
+    });
   }
 }
 
-export const wttApi = new WTTApiClient(WTT_API_URL)
+export const wttApi = new WTTApiClient(WTT_API_URL);
