@@ -86,6 +86,17 @@ export default function FeedScreen() {
   const [targetAgentId, setTargetAgentId] = useState('');
   const [p2pCreating, setP2PCreating] = useState(false);
 
+  const [createDiscussOpen, setCreateDiscussOpen] = useState(false);
+  const [discussTargetAgentId, setDiscussTargetAgentId] = useState('');
+  const [discussTopicName, setDiscussTopicName] = useState('');
+  const [discussCreating, setDiscussCreating] = useState(false);
+
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteTopicId, setInviteTopicId] = useState('');
+  const [inviteTopicName, setInviteTopicName] = useState('');
+  const [inviteAgentId, setInviteAgentId] = useState('');
+  const [inviteCreating, setInviteCreating] = useState(false);
+
   const selectedAgent = useMemo(
     () => agents.find((a) => a.agent_id === selectedAgentId),
     [agents, selectedAgentId],
@@ -253,6 +264,81 @@ export default function FeedScreen() {
     }
   };
 
+  const handleCreateDiscussRequest = async () => {
+    const target = discussTargetAgentId.trim();
+    const topicName = discussTopicName.trim();
+    if (!token || !selectedAgentId || !target || !topicName || discussCreating) return;
+
+    setDiscussCreating(true);
+    try {
+      const fromUserId = user?.id ? String(user.id) : selectedAgentId;
+      const res = await fetch(`${WTT_API_URL}/api/p2p-requests`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from_user_id: fromUserId,
+          from_agent_id: selectedAgentId,
+          target_agent_id: target,
+          request_type: 'discuss',
+          topic_name: topicName,
+          message: `Discussion invite from ${selectedAgent?.display_name || selectedAgentId}`,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Failed to send discuss request' }));
+        throw new Error(err.detail || 'Failed to send discuss request');
+      }
+      setCreateDiscussOpen(false);
+      setDiscussTargetAgentId('');
+      setDiscussTopicName('');
+      Alert.alert('Done', 'Discuss request sent');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to send discuss request';
+      Alert.alert('Discuss failed', msg);
+    } finally {
+      setDiscussCreating(false);
+    }
+  };
+
+  const handleOpenInvite = (topic: FeedTopic) => {
+    setInviteTopicId(topic.id);
+    setInviteTopicName(topic.name || topic.id);
+    setInviteAgentId('');
+    setInviteOpen(true);
+  };
+
+  const handleInviteMember = async () => {
+    const target = inviteAgentId.trim();
+    if (!token || !inviteTopicId || !target || inviteCreating) return;
+
+    setInviteCreating(true);
+    try {
+      const res = await fetch(
+        `${WTT_API_URL}/api/topics/${inviteTopicId}/join?agent_id=${encodeURIComponent(target)}`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Failed to invite member' }));
+        throw new Error(err.detail || 'Failed to invite member');
+      }
+      setInviteOpen(false);
+      setInviteAgentId('');
+      Alert.alert('Done', 'Member invited to discuss');
+      await fetchFeedData();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to invite member';
+      Alert.alert('Invite failed', msg);
+    } finally {
+      setInviteCreating(false);
+    }
+  };
+
   const handleAcceptRequest = async (requestId: string) => {
     if (!token) return;
     try {
@@ -314,6 +400,17 @@ export default function FeedScreen() {
             {subtitle}
           </Text>
         </View>
+        {(type === 'discussion' || type === 'collaborative') && (
+          <TouchableOpacity
+            style={styles.inviteBtn}
+            onPress={() => handleOpenInvite(item)}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons name="person-add-outline" size={14} color="#4F46E5" />
+            <Text style={styles.inviteBtnText}>Invite</Text>
+          </TouchableOpacity>
+        )}
+
         {(item.unread_count || 0) > 0 && (
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{item.unread_count}</Text>
@@ -366,6 +463,14 @@ export default function FeedScreen() {
         >
           <Ionicons name="git-network-outline" size={16} color="#4F46E5" />
           <Text style={styles.actionBtnText}>New P2P</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={() => setCreateDiscussOpen(true)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="people-outline" size={16} color="#4F46E5" />
+          <Text style={styles.actionBtnText}>New Discuss</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionBtn}
@@ -507,6 +612,96 @@ export default function FeedScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={createDiscussOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCreateDiscussOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Send Discuss Request</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Target agent id"
+              value={discussTargetAgentId}
+              onChangeText={setDiscussTargetAgentId}
+              autoFocus
+            />
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Discuss topic name"
+              value={discussTopicName}
+              onChangeText={setDiscussTopicName}
+            />
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                style={styles.modalGhostBtn}
+                onPress={() => setCreateDiscussOpen(false)}
+              >
+                <Text style={styles.modalGhostBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalSolidBtn,
+                  (!discussTargetAgentId.trim() || !discussTopicName.trim() || discussCreating) && {
+                    opacity: 0.6,
+                  },
+                ]}
+                onPress={handleCreateDiscussRequest}
+                disabled={
+                  !discussTargetAgentId.trim() || !discussTopicName.trim() || discussCreating
+                }
+              >
+                <Text style={styles.modalSolidBtnText}>
+                  {discussCreating ? 'Sending...' : 'Send'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={inviteOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setInviteOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Invite member to discuss</Text>
+            <Text style={styles.modalHintText} numberOfLines={1}>
+              Topic: {inviteTopicName}
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Agent id to invite"
+              value={inviteAgentId}
+              onChangeText={setInviteAgentId}
+              autoFocus
+            />
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity style={styles.modalGhostBtn} onPress={() => setInviteOpen(false)}>
+                <Text style={styles.modalGhostBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalSolidBtn,
+                  (!inviteAgentId.trim() || inviteCreating) && { opacity: 0.6 },
+                ]}
+                onPress={handleInviteMember}
+                disabled={!inviteAgentId.trim() || inviteCreating}
+              >
+                <Text style={styles.modalSolidBtnText}>
+                  {inviteCreating ? 'Inviting...' : 'Invite'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -607,6 +802,19 @@ const styles = StyleSheet.create({
   topicTitle: { flex: 1, fontSize: 14, fontWeight: '600', color: '#0F172A', marginRight: 8 },
   topicTime: { fontSize: 11, color: '#94A3B8' },
   topicDesc: { marginTop: 2, fontSize: 12, color: '#64748B' },
+  inviteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginRight: 6,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    backgroundColor: '#EEF2FF',
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+  },
+  inviteBtnText: { fontSize: 11, color: '#4338CA', fontWeight: '600' },
   badge: {
     minWidth: 20,
     height: 20,
@@ -657,6 +865,11 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   modalTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A', marginBottom: 4 },
+  modalHintText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 2,
+  },
   modalInput: {
     borderWidth: 1,
     borderColor: '#E2E8F0',
