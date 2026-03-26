@@ -12,6 +12,7 @@ import {
   Modal,
   StyleSheet,
 } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/auth';
 import { useAgentsStore } from '@/stores/agents';
@@ -48,6 +49,7 @@ export default function TasksScreen() {
     deleteTask,
     runTask,
     reviewTask,
+    updateTaskStatus,
     fetchTaskTimeline,
     sendTaskChat,
     timelineByTask,
@@ -111,6 +113,20 @@ export default function TasksScreen() {
     fetchTaskTimeline(token, selectedTask.id, selectedTask.topic_id, selectedAgentId || undefined);
   }, [panelOpen, selectedTask, token, selectedAgentId, fetchTaskTimeline]);
 
+  useEffect(() => {
+    if (!panelOpen || !selectedTask || !token) return;
+    const timer = setInterval(() => {
+      fetchTaskTimeline(
+        token,
+        selectedTask.id,
+        selectedTask.topic_id,
+        selectedAgentId || undefined,
+      );
+      loadTasks();
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [panelOpen, selectedTask, token, selectedAgentId, fetchTaskTimeline, loadTasks]);
+
   const openTaskPanel = (task: TaskItem) => {
     setSelectedTaskId(task.id);
     setPanelOpen(true);
@@ -173,6 +189,39 @@ export default function TasksScreen() {
     } finally {
       setActionBusy(false);
     }
+  };
+
+  const moveCurrentStatus = async (status: TaskItem['status']) => {
+    if (!selectedTask || !token || actionBusy) return;
+    setActionBusy(true);
+    try {
+      await updateTaskStatus(token, selectedTask.id, status);
+      await fetchTaskTimeline(
+        token,
+        selectedTask.id,
+        selectedTask.topic_id,
+        selectedAgentId || undefined,
+      );
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Status update failed';
+      Alert.alert('Status update failed', msg);
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const openCurrentTopicChat = () => {
+    if (!selectedTask?.topic_id) {
+      Alert.alert('No topic', 'This task has no linked topic yet.');
+      return;
+    }
+    router.push({
+      pathname: '/chat/[id]',
+      params: {
+        id: selectedTask.topic_id,
+        name: selectedTask.title,
+      },
+    });
   };
 
   const deleteCurrent = () => {
@@ -381,6 +430,27 @@ export default function TasksScreen() {
                       <Text style={styles.actionPrimaryText}>Run</Text>
                     </TouchableOpacity>
                   )}
+
+                  {selectedTask.status === 'todo' && (
+                    <TouchableOpacity
+                      style={styles.actionPrimary}
+                      onPress={() => moveCurrentStatus('doing')}
+                      disabled={actionBusy}
+                    >
+                      <Text style={styles.actionPrimaryText}>Move → Doing</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {selectedTask.status === 'doing' && (
+                    <TouchableOpacity
+                      style={styles.actionWarn}
+                      onPress={() => moveCurrentStatus('review')}
+                      disabled={actionBusy}
+                    >
+                      <Text style={styles.actionWarnText}>Move → Review</Text>
+                    </TouchableOpacity>
+                  )}
+
                   {selectedTask.status === 'review' && (
                     <>
                       <TouchableOpacity
@@ -406,6 +476,25 @@ export default function TasksScreen() {
                       </TouchableOpacity>
                     </>
                   )}
+
+                  {(selectedTask.status === 'done' || selectedTask.status === 'blocked') && (
+                    <TouchableOpacity
+                      style={styles.actionPrimary}
+                      onPress={() => moveCurrentStatus('todo')}
+                      disabled={actionBusy}
+                    >
+                      <Text style={styles.actionPrimaryText}>Reopen → To Do</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <TouchableOpacity
+                    style={styles.actionGhost}
+                    onPress={openCurrentTopicChat}
+                    disabled={actionBusy}
+                  >
+                    <Text style={styles.actionGhostText}>Open Topic</Text>
+                  </TouchableOpacity>
+
                   <TouchableOpacity
                     style={styles.actionDanger}
                     onPress={deleteCurrent}
@@ -413,6 +502,17 @@ export default function TasksScreen() {
                   >
                     <Text style={styles.actionDangerText}>Delete</Text>
                   </TouchableOpacity>
+                </View>
+
+                <View style={styles.metaCard}>
+                  <Text style={styles.metaLine}>Task ID: {selectedTask.id}</Text>
+                  <Text style={styles.metaLine}>Owner: {selectedTask.owner_agent_id || '-'}</Text>
+                  <Text style={styles.metaLine}>Runner: {selectedTask.runner_agent_id || '-'}</Text>
+                  <Text style={styles.metaLine}>Topic: {selectedTask.topic_id || '-'}</Text>
+                  <Text style={styles.metaLine}>
+                    Updated:{' '}
+                    {selectedTask.updated_at ? formatTimeAgo(selectedTask.updated_at) : '-'}
+                  </Text>
                 </View>
 
                 <View style={styles.timelineWrap}>
@@ -616,6 +716,13 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   actionWarnText: { color: '#B45309', fontSize: 12, fontWeight: '700' },
+  actionGhost: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  actionGhostText: { color: '#334155', fontSize: 12, fontWeight: '700' },
   actionDanger: {
     backgroundColor: '#FEF2F2',
     borderRadius: 8,
@@ -623,6 +730,18 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   actionDangerText: { color: '#B91C1C', fontSize: 12, fontWeight: '700' },
+
+  metaCard: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 10,
+    gap: 3,
+  },
+  metaLine: { fontSize: 11, color: '#475569' },
 
   timelineWrap: {
     borderWidth: 1,
