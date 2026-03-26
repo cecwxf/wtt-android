@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
+import { getSecureItem, setSecureItem } from '@/lib/storage/secure-store';
 
 interface AppSettingsState {
   messageNotify: boolean;
@@ -24,10 +24,10 @@ type Persisted = {
 };
 
 async function persist(partial: Partial<Persisted>) {
-  const raw = await SecureStore.getItemAsync(KEY);
+  const raw = await getSecureItem(KEY);
   const existing: Persisted = raw ? JSON.parse(raw) : {};
   const next: Persisted = { ...existing, ...partial };
-  await SecureStore.setItemAsync(KEY, JSON.stringify(next));
+  await setSecureItem(KEY, JSON.stringify(next));
 }
 
 export const useAppSettingsStore = create<AppSettingsState>((set) => ({
@@ -37,7 +37,7 @@ export const useAppSettingsStore = create<AppSettingsState>((set) => ({
   fallbackPollSeconds: 10,
 
   load: async () => {
-    const raw = await SecureStore.getItemAsync(KEY);
+    const raw = await getSecureItem(KEY);
     if (!raw) return;
     try {
       const parsed = JSON.parse(raw) as Persisted;

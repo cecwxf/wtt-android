@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
 import { WTT_API_URL } from '@/lib/api/base-url';
+import { deleteSecureItem, getSecureItem, setSecureItem } from '@/lib/storage/secure-store';
 import { normalizeAndFilterAgents } from '@/lib/agents';
 
 export interface Agent {
@@ -44,7 +44,7 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
         set({ agents, isLoading: false });
 
         if (agents.length === 0) {
-          await SecureStore.deleteItemAsync(SELECTED_AGENT_KEY);
+          await deleteSecureItem(SELECTED_AGENT_KEY);
           set({ selectedAgentId: null });
           return;
         }
@@ -62,12 +62,12 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
   },
 
   selectAgent: async (agentId: string) => {
-    await SecureStore.setItemAsync(SELECTED_AGENT_KEY, agentId);
+    await setSecureItem(SELECTED_AGENT_KEY, agentId);
     set({ selectedAgentId: agentId });
   },
 
   loadSelectedAgent: async () => {
-    const saved = await SecureStore.getItemAsync(SELECTED_AGENT_KEY);
+    const saved = await getSecureItem(SELECTED_AGENT_KEY);
     if (saved) set({ selectedAgentId: saved });
   },
 

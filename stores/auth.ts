@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
+import { getSecureItem, setSecureItem, deleteSecureItem } from '@/lib/storage/secure-store';
 import { WTTApiClient } from '@/lib/api/wtt-client';
 import { WTT_API_URL } from '@/lib/api/base-url';
 
@@ -37,7 +37,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const client = new WTTApiClient(WTT_API_URL);
     const data = await client.login(email, password);
     const token = data.access_token;
-    await SecureStore.setItemAsync(TOKEN_KEY, token);
+    await setSecureItem(TOKEN_KEY, token);
     set({ token, isAuthenticated: true });
     // Fetch user profile
     try {
@@ -46,10 +46,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       if (res.ok) {
         const user = await res.json();
-        await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
+        await setSecureItem(USER_KEY, JSON.stringify(user));
         set({ user });
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   },
 
   register: async (username: string, email: string, password: string) => {
@@ -60,15 +62,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
-    await SecureStore.deleteItemAsync(USER_KEY);
+    await deleteSecureItem(TOKEN_KEY);
+    await deleteSecureItem(USER_KEY);
     set({ token: null, user: null, isAuthenticated: false });
   },
 
   loadToken: async () => {
     try {
-      const token = await SecureStore.getItemAsync(TOKEN_KEY);
-      const userStr = await SecureStore.getItemAsync(USER_KEY);
+      const token = await getSecureItem(TOKEN_KEY);
+      const userStr = await getSecureItem(USER_KEY);
       const user = userStr ? JSON.parse(userStr) : null;
       set({
         token,
@@ -82,8 +84,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   setToken: async (token: string, user?: User) => {
-    await SecureStore.setItemAsync(TOKEN_KEY, token);
-    if (user) await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
+    await setSecureItem(TOKEN_KEY, token);
+    if (user) await setSecureItem(USER_KEY, JSON.stringify(user));
     set({ token, user: user ?? get().user, isAuthenticated: true });
   },
 }));

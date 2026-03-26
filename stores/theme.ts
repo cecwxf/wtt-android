@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
 import { Appearance, type ColorSchemeName } from 'react-native';
+import { getSecureItem, setSecureItem } from '@/lib/storage/secure-store';
 
 type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -23,13 +23,13 @@ export const useThemeStore = create<ThemeState>((set) => ({
   resolved: resolve('system', Appearance.getColorScheme()),
 
   setMode: async (mode: ThemeMode) => {
-    await SecureStore.setItemAsync(THEME_KEY, mode);
+    await setSecureItem(THEME_KEY, mode);
     set({ mode, resolved: resolve(mode, Appearance.getColorScheme()) });
   },
 
   loadMode: async () => {
-    const saved = await SecureStore.getItemAsync(THEME_KEY);
-    const mode = (saved === 'light' || saved === 'dark' || saved === 'system') ? saved : 'system';
+    const saved = await getSecureItem(THEME_KEY);
+    const mode = saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'system';
     set({ mode, resolved: resolve(mode, Appearance.getColorScheme()) });
   },
 }));

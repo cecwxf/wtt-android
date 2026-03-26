@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
 import en from '@/i18n/en.json';
+import { getSecureItem, setSecureItem } from '@/lib/storage/secure-store';
 import zh from '@/i18n/zh.json';
 
 type Locale = 'en' | 'zh';
@@ -21,12 +21,12 @@ export const useI18nStore = create<I18nState>((set) => ({
   t: en,
 
   setLocale: async (locale: Locale) => {
-    await SecureStore.setItemAsync(LOCALE_KEY, locale);
+    await setSecureItem(LOCALE_KEY, locale);
     set({ locale, t: translations[locale] });
   },
 
   loadLocale: async () => {
-    const saved = await SecureStore.getItemAsync(LOCALE_KEY);
+    const saved = await getSecureItem(LOCALE_KEY);
     const locale: Locale = saved === 'zh' ? 'zh' : 'en';
     set({ locale, t: translations[locale] });
   },
