@@ -12,12 +12,15 @@ import {
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { useAuthStore } from '@/stores/auth';
+import { getOAuthRedirectUri, startOAuthCodeFlow, type OAuthProvider } from '@/lib/auth/oauth';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<OAuthProvider | null>(null);
   const login = useAuthStore((s) => s.login);
+  const loginWithOAuth = useAuthStore((s) => s.loginWithOAuth);
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -33,6 +36,22 @@ export default function LoginScreen() {
       Alert.alert('Login Failed', message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOAuthLogin = async (provider: OAuthProvider) => {
+    setOauthLoading(provider);
+    try {
+      const oauth = await startOAuthCodeFlow(provider);
+      await loginWithOAuth(provider, oauth);
+      router.replace('/(tabs)');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'OAuth login failed';
+      if (message !== 'OAuth cancelled') {
+        Alert.alert('OAuth Login Failed', `${message}\n\nRedirect URI: ${getOAuthRedirectUri()}`);
+      }
+    } finally {
+      setOauthLoading(null);
     }
   };
 
@@ -105,7 +124,7 @@ export default function LoginScreen() {
           className="bg-primary rounded-xl py-4 items-center mb-4"
           style={styles.signInButton}
           onPress={handleLogin}
-          disabled={loading}
+          disabled={loading || !!oauthLoading}
           activeOpacity={0.8}
         >
           {loading ? (
@@ -118,24 +137,54 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         {/* OAuth Buttons */}
-        <View className="flex-row gap-3 mb-6" style={styles.oauthRow}>
+        <View className="flex-row gap-3 mb-3" style={styles.oauthRow}>
           <TouchableOpacity
             className="flex-1 bg-gray-900 dark:bg-zinc-700 rounded-xl py-3 items-center"
             style={styles.githubButton}
+            onPress={() => handleOAuthLogin('github')}
+            disabled={!!oauthLoading}
+            activeOpacity={0.8}
           >
-            <Text className="text-white font-inter text-sm" style={styles.oauthText}>
-              GitHub
-            </Text>
+            {oauthLoading === 'github' ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text className="text-white font-inter text-sm" style={styles.oauthText}>
+                GitHub
+              </Text>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             className="flex-1 bg-red-500 rounded-xl py-3 items-center"
             style={styles.googleButton}
+            onPress={() => handleOAuthLogin('google')}
+            disabled={!!oauthLoading}
+            activeOpacity={0.8}
           >
-            <Text className="text-white font-inter text-sm" style={styles.oauthText}>
-              Google
-            </Text>
+            {oauthLoading === 'google' ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text className="text-white font-inter text-sm" style={styles.oauthText}>
+                Google
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity
+          className="bg-sky-500 rounded-xl py-3 items-center mb-6"
+          style={styles.twitterButton}
+          onPress={() => handleOAuthLogin('twitter')}
+          disabled={!!oauthLoading}
+          activeOpacity={0.8}
+        >
+          {oauthLoading === 'twitter' ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text className="text-white font-inter text-sm" style={styles.oauthText}>
+              Twitter
+            </Text>
+          )}
+        </TouchableOpacity>
 
         {/* Register Link */}
         <View className="flex-row justify-center" style={styles.registerRow}>
@@ -237,7 +286,7 @@ const styles = StyleSheet.create({
   oauthRow: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 12,
   },
   githubButton: {
     flex: 1,
@@ -252,6 +301,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
+  },
+  twitterButton: {
+    backgroundColor: '#0EA5E9',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 24,
   },
   oauthText: {
     color: '#fff',

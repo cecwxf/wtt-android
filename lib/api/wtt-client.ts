@@ -92,6 +92,31 @@ export class WTTApiClient {
     });
   }
 
+  async oauthCallback(
+    provider: 'github' | 'google' | 'twitter',
+    code: string,
+    options?: { redirect_uri?: string; code_verifier?: string },
+  ) {
+    return this.request<{
+      access_token: string;
+      token_type: string;
+      user?: {
+        id?: string;
+        email?: string;
+        name?: string;
+        avatar?: string;
+      };
+    }>('/auth/oauth/callback', {
+      method: 'POST',
+      body: JSON.stringify({
+        provider,
+        code,
+        ...(options?.redirect_uri ? { redirect_uri: options.redirect_uri } : {}),
+        ...(options?.code_verifier ? { code_verifier: options.code_verifier } : {}),
+      }),
+    });
+  }
+
   async requestPasswordReset(email: string) {
     return this.request<{ ok: boolean; message: string }>('/auth/forgot-password', {
       method: 'POST',

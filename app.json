@@ -45,6 +45,12 @@
     },
     "extra": {
       "wttApiUrl": "https://www.waxbyte.com",
+      "oauth": {
+        "githubClientId": "",
+        "googleClientId": "",
+        "twitterClientId": "",
+        "redirectUri": "wtt://oauth"
+      },
       "eas": {
         "projectId": ""
       }

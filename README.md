@@ -216,6 +216,29 @@ npx expo run:android
 npx expo start --tunnel
 ```
 
+### OAuth Setup (GitHub / Google / Twitter)
+
+`wtt-android` now supports the same OAuth providers as `wtt-web`.
+
+Set `expo.extra.oauth` in `app.json`:
+
+```json
+{
+  "expo": {
+    "extra": {
+      "oauth": {
+        "githubClientId": "<github-client-id>",
+        "googleClientId": "<google-client-id>",
+        "twitterClientId": "<twitter-client-id>",
+        "redirectUri": "wtt://oauth"
+      }
+    }
+  }
+}
+```
+
+Also add `wtt://oauth` to each provider's allowed callback/redirect URI list.
+
 ### Building
 
 ```bash
