@@ -42,11 +42,13 @@ Expo Application Services (EAS) handles all builds in the cloud — no local And
 ## Google Play
 
 ### Setup
+
 1. Google Play Developer account ($25 one-time)
 2. Create app in Play Console
 3. Generate service account JSON for automated uploads
 
 ### Store Listing
+
 - App icon: 512×512 PNG
 - Feature graphic: 1024×500
 - Screenshots: phone (min 2), 7" tablet, 10" tablet
@@ -57,10 +59,11 @@ Expo Application Services (EAS) handles all builds in the cloud — no local And
 ### Release Workflow
 
 ```bash
-# Build AAB for Google Play
-eas build --platform android --profile production-global
+# Recommended one-click flow (with preflight + build + submit)
+EAS_PROJECT_ID=<your-project-id> GOOGLE_PLAY_KEY_PATH=./google-play-key.json npm run release:play
 
-# Auto-submit to Google Play
+# Manual flow
+APP_VARIANT=global eas build --platform android --profile production-global
 eas submit --platform android --profile production
 
 # Or: staged rollout via Play Console UI
@@ -85,71 +88,82 @@ Users get the update on next app launch — no store re-review needed.
 ### Prerequisites
 
 #### 1. Software Copyright (软件著作权)
+
 - Apply at: www.ccopyright.com.cn
 - Processing: 30 working days (standard) / 3 days (expedited ~¥800)
 - Required: source code first/last 30 pages, design docs
 - Certificate name: "WTT智能通讯软件"
 
 #### 2. ICP Filing (ICP备案)
+
 - Domain waxbyte.com must have ICP备案
 - Apply via cloud provider (Tencent Cloud / Aliyun)
 
 #### 3. Privacy Compliance (隐私合规)
+
 - First-launch privacy dialog (mandatory on all CN stores)
 - List: all data collected, purposes, third-party SDKs
 - User must explicitly agree before any data collection
 
 ### Store-by-Store
 
-| Store | URL | Review Time | Notes |
-|-------|-----|-------------|-------|
-| 华为应用市场 | developer.huawei.com | 1-3 days | HMS SDK for push |
-| 小米应用商店 | dev.mi.com | 1-3 days | MiPush SDK |
-| OPPO软件商店 | open.oppomobile.com | 1-5 days | — |
-| vivo应用商店 | dev.vivo.com.cn | 1-3 days | — |
-| 应用宝 (Tencent) | open.tencent.com | 3-7 days | Bugly integration encouraged |
+| Store            | URL                  | Review Time | Notes                        |
+| ---------------- | -------------------- | ----------- | ---------------------------- |
+| 华为应用市场     | developer.huawei.com | 1-3 days    | HMS SDK for push             |
+| 小米应用商店     | dev.mi.com           | 1-3 days    | MiPush SDK                   |
+| OPPO软件商店     | open.oppomobile.com  | 1-5 days    | —                            |
+| vivo应用商店     | dev.vivo.com.cn      | 1-3 days    | —                            |
+| 应用宝 (Tencent) | open.tencent.com     | 3-7 days    | Bugly integration encouraged |
 
 All stores require: 软件著作权证书, real-name developer, privacy policy, **no GMS-only dependency**.
 
 ### China Build
 
 ```bash
-# Build unsigned APK for China stores
-eas build --platform android --profile production-china
+# Recommended one-click flow (with preflight)
+EAS_PROJECT_ID=<your-project-id> npm run release:china
+
+# Manual flow
+APP_VARIANT=china eas build --platform android --profile production-china
 
 # Download APK, sign with local keystore, submit manually
 ```
 
 ### Feature Differences by Variant
 
-| Feature | `global` | `china` |
-|---------|----------|---------|
-| Push | FCM (expo-notifications) | HMS + vendor SDKs |
-| OAuth | GitHub + Google | GitHub + WeChat |
-| Payment | Google Play Billing | Alipay + WeChat Pay |
-| Analytics | Firebase Analytics | 友盟 (Umeng) |
-| Crash | Sentry | Sentry |
-| Map | Google Maps | 高德 (Amap) |
-| OTA update | expo-updates | expo-updates |
-| App ID | com.waxbyte.wtt | com.waxbyte.wtt.cn |
+| Feature    | `global`                  | `china`                                              |
+| ---------- | ------------------------- | ---------------------------------------------------- |
+| Push       | FCM (expo-notifications)  | HMS + vendor SDKs                                    |
+| OAuth      | GitHub + Google + Twitter | GitHub + Twitter (Google disabled by variant config) |
+| Payment    | Google Play Billing       | Alipay + WeChat Pay                                  |
+| Analytics  | Firebase Analytics        | 友盟 (Umeng)                                         |
+| Crash      | Sentry                    | Sentry                                               |
+| Map        | Google Maps               | 高德 (Amap)                                          |
+| OTA update | expo-updates              | expo-updates                                         |
+| App ID     | com.waxbyte.wtt           | com.waxbyte.wtt.cn                                   |
 
-### Variant Implementation (app.config.ts)
+### Variant Implementation (app.config.js)
 
-```typescript
-const IS_CHINA = process.env.APP_VARIANT === 'china';
+```javascript
+const variant = process.env.APP_VARIANT === 'china' ? 'china' : 'global';
+const isChina = variant === 'china';
 
-export default {
-  name: IS_CHINA ? 'WTT智能助手' : 'WTT',
-  slug: 'wtt-mobile',
+module.exports = ({ config }) => ({
+  ...config,
+  name: isChina ? 'WTT智能助手' : 'WTT',
   android: {
-    package: IS_CHINA ? 'com.waxbyte.wtt.cn' : 'com.waxbyte.wtt',
-    googleServicesFile: IS_CHINA ? undefined : './google-services.json',
+    ...(config.android || {}),
+    package: isChina ? 'com.waxbyte.wtt.cn' : 'com.waxbyte.wtt',
   },
-  plugins: [
-    IS_CHINA ? 'expo-hms-push' : 'expo-notifications',
-    // ...
-  ],
-};
+  extra: {
+    ...(config.extra || {}),
+    appVariant: variant,
+    oauth: {
+      ...((config.extra || {}).oauth || {}),
+      ...(isChina ? { googleClientId: '' } : {}),
+    },
+  },
+});
 ```
 
 ---
@@ -194,6 +208,7 @@ jobs:
 ## Release Checklist
 
 ### First Release
+
 - [ ] Expo project created and linked
 - [ ] EAS Build configured
 - [ ] Google Play Developer account
@@ -205,6 +220,7 @@ jobs:
 - [ ] ICP备案 completed (if targeting China)
 
 ### Each Release
+
 - [ ] Version bump in app.json
 - [ ] Changelog updated
 - [ ] `eas build` for target profiles

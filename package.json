@@ -11,6 +11,8 @@
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
     "release:check": "node ./scripts/release-check.mjs",
+    "release:play": "./scripts/release-play-internal.sh",
+    "release:china": "./scripts/release-china-package.sh",
     "build:play": "APP_VARIANT=global eas build --platform android --profile production-global",
     "build:china": "APP_VARIANT=china eas build --platform android --profile production-china",
     "reset-project": "node ./scripts/reset-project.js"

@@ -246,22 +246,26 @@ Also add `wtt://oauth` to each provider's allowed callback/redirect URI list.
 
 ```bash
 # Release preflight (config/privacy/assets)
-npm run release:check
+# If app.json projectId is empty, pass EAS_PROJECT_ID from env.
+EAS_PROJECT_ID=<your-project-id> npm run release:check
 
 # Login to Expo
 eas login
 
-# Build for Android (preview)
+# One-click: Google Play internal release (build + submit)
+EAS_PROJECT_ID=<your-project-id> GOOGLE_PLAY_KEY_PATH=./google-play-key.json npm run release:play
+
+# One-click: China package build (manual store upload)
+EAS_PROJECT_ID=<your-project-id> npm run release:china
+
+# Manual build for Android (preview)
 eas build --platform android --profile preview
 
-# Build for production (Google Play)
+# Manual build for production (Google Play)
 APP_VARIANT=global eas build --platform android --profile production-global
 
-# Build for China stores (APK)
+# Manual build for China stores (APK)
 APP_VARIANT=china eas build --platform android --profile production-china
-
-# Submit to Google Play
-eas submit --platform android
 ```
 
 ---

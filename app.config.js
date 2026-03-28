@@ -4,6 +4,9 @@ module.exports = ({ config }) => {
   const base = appJson.expo || {};
   const variant = process.env.APP_VARIANT === 'china' ? 'china' : 'global';
   const isChina = variant === 'china';
+  const envProjectId = (process.env.EAS_PROJECT_ID || '').trim();
+  const fileProjectId = String(((base.extra || {}).eas || {}).projectId || '').trim();
+  const resolvedProjectId = envProjectId || fileProjectId;
 
   return {
     ...base,
@@ -23,6 +26,11 @@ module.exports = ({ config }) => {
       ...(base.extra || {}),
       ...(config?.extra || {}),
       appVariant: variant,
+      eas: {
+        ...((base.extra || {}).eas || {}),
+        ...((config?.extra || {}).eas || {}),
+        projectId: resolvedProjectId,
+      },
       oauth: {
         ...((base.extra || {}).oauth || {}),
         ...((config?.extra || {}).oauth || {}),

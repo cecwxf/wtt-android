@@ -33,12 +33,17 @@ if (!appJson?.expo) {
 }
 
 const expo = appJson.expo;
-const projectId = expo?.extra?.eas?.projectId;
-if (projectId && String(projectId).trim()) {
-  ok(`EAS projectId is set (${String(projectId).slice(0, 8)}...)`);
+const envProjectId = (process.env.EAS_PROJECT_ID || '').trim();
+const fileProjectId = String(expo?.extra?.eas?.projectId || '').trim();
+const projectId = envProjectId || fileProjectId;
+if (projectId) {
+  ok(
+    `EAS projectId is set (${String(projectId).slice(0, 8)}...)` +
+      (envProjectId ? ' via env' : ' via app.json'),
+  );
 } else {
   hasError = true;
-  fail('expo.extra.eas.projectId is empty (required for EAS cloud builds)');
+  fail('EAS projectId is empty. Set EAS_PROJECT_ID or app.json expo.extra.eas.projectId');
 }
 
 if (fs.existsSync(path.join(root, 'app.config.js'))) {
@@ -59,10 +64,12 @@ const packageName = variant === 'china' ? 'com.waxbyte.wtt.cn' : 'com.waxbyte.wt
 ok(`Target variant: ${variant} (expected package: ${packageName})`);
 
 if (variant === 'global') {
-  if (fs.existsSync(path.join(root, 'google-play-key.json'))) {
-    ok('google-play-key.json exists (EAS submit ready)');
+  const keyPath = (process.env.GOOGLE_PLAY_KEY_PATH || 'google-play-key.json').trim();
+  const resolvedKeyPath = path.isAbsolute(keyPath) ? keyPath : path.join(root, keyPath);
+  if (fs.existsSync(resolvedKeyPath)) {
+    ok(`Google Play key exists (${keyPath})`);
   } else {
-    warn('google-play-key.json not found (can build, but auto-submit to Google Play will fail)');
+    warn(`Google Play key not found at ${keyPath} (build is OK, auto-submit will fail)`);
   }
 } else {
   ok('China variant selected; Google Play key is optional.');
