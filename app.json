@@ -52,7 +52,7 @@
         "redirectUri": "wtt://oauth"
       },
       "eas": {
-        "projectId": ""
+        "projectId": "c4788ed5-306f-4662-ab7a-4392fd044a31"
       }
     }
   }
