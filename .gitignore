@@ -13,6 +13,7 @@ ios/
 # Env files
 .env
 .env.local
+.env.release
 .env.*.local
 
 # IDE

@@ -9,13 +9,19 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
-if ! command -v eas >/dev/null 2>&1; then
-  echo "❌ eas CLI not found. Install with: npm i -g eas-cli"
-  exit 1
+if command -v eas >/dev/null 2>&1; then
+  EAS_CMD=(eas)
+else
+  EAS_CMD=(npx --yes eas-cli)
 fi
 
 if [[ -z "${EAS_PROJECT_ID:-}" ]]; then
   echo "❌ EAS_PROJECT_ID is required"
+  exit 1
+fi
+
+if ! "${EAS_CMD[@]}" whoami >/dev/null 2>&1; then
+  echo "❌ EAS auth not ready. Run: ${EAS_CMD[*]} login"
   exit 1
 fi
 
@@ -27,6 +33,6 @@ npm run release:check
 BUILD_PROFILE="${EAS_BUILD_PROFILE:-production-china}"
 
 echo "==> Building Android package with profile: $BUILD_PROFILE"
-eas build --platform android --profile "$BUILD_PROFILE"
+"${EAS_CMD[@]}" build --platform android --profile "$BUILD_PROFILE"
 
 echo "✅ China store package build submitted. Download artifact from EAS dashboard for manual store upload."

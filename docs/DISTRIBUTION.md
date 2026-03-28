@@ -60,6 +60,7 @@ Expo Application Services (EAS) handles all builds in the cloud — no local And
 
 ```bash
 # Recommended one-click flow (with preflight + build + submit)
+# (scripts support global eas or npx eas-cli)
 EAS_PROJECT_ID=<your-project-id> GOOGLE_PLAY_KEY_PATH=./google-play-key.json npm run release:play
 
 # Manual flow

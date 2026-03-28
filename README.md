@@ -245,11 +245,14 @@ Also add `wtt://oauth` to each provider's allowed callback/redirect URI list.
 ### Building
 
 ```bash
+# Optional: prepare env vars from template
+cp .env.release.example .env.release
+
 # Release preflight (config/privacy/assets)
 # If app.json projectId is empty, pass EAS_PROJECT_ID from env.
 EAS_PROJECT_ID=<your-project-id> npm run release:check
 
-# Login to Expo
+# Login to Expo (global eas OR npx eas-cli both supported by scripts)
 eas login
 
 # One-click: Google Play internal release (build + submit)
