@@ -171,38 +171,17 @@ module.exports = ({ config }) => ({
 
 ## CI/CD (GitHub Actions)
 
-```yaml
-# .github/workflows/build.yml
-name: Build & Deploy
-on:
-  push:
-    tags: ['v*']
+Use workflow: `.github/workflows/eas-release.yml` (manual `workflow_dispatch`).
 
-jobs:
-  build-global:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-      - run: npm ci
-      - run: eas build --platform android --profile production-global --non-interactive
-      - run: eas submit --platform android --non-interactive
+Required repository secrets:
+- `EXPO_TOKEN`
+- `EAS_PROJECT_ID`
+- `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` (for Play submit only)
 
-  build-china:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-      - run: npm ci
-      - run: eas build --platform android --profile production-china --non-interactive
-      # China APK uploaded as release artifact for manual store submission
-```
+Targets:
+- `play`: build + submit to Google Play (internal track)
+- `china`: build China package for manual upload
+- `both`: run both jobs
 
 ---
 

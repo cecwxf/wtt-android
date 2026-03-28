@@ -261,6 +261,9 @@ EAS_PROJECT_ID=<your-project-id> GOOGLE_PLAY_KEY_PATH=./google-play-key.json npm
 # One-click: China package build (manual store upload)
 EAS_PROJECT_ID=<your-project-id> npm run release:china
 
+# CI release (GitHub Actions, workflow_dispatch)
+# Configure repo secrets: EXPO_TOKEN, EAS_PROJECT_ID, GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+
 # Manual build for Android (preview)
 eas build --platform android --profile preview
 
