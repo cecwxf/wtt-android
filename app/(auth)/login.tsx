@@ -12,7 +12,12 @@ import {
 } from 'react-native';
 import { Link, router, useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '@/stores/auth';
-import { getOAuthRedirectUri, startOAuthCodeFlow, type OAuthProvider } from '@/lib/auth/oauth';
+import {
+  getOAuthRedirectUri,
+  isOAuthProviderEnabled,
+  startOAuthCodeFlow,
+  type OAuthProvider,
+} from '@/lib/auth/oauth';
 
 export default function LoginScreen() {
   const params = useLocalSearchParams<{ email?: string; activation_hint?: string }>();
@@ -24,6 +29,9 @@ export default function LoginScreen() {
   const login = useAuthStore((s) => s.login);
   const loginWithOAuth = useAuthStore((s) => s.loginWithOAuth);
   const resendActivation = useAuthStore((s) => s.resendActivation);
+  const githubEnabled = isOAuthProviderEnabled('github');
+  const googleEnabled = isOAuthProviderEnabled('google');
+  const twitterEnabled = isOAuthProviderEnabled('twitter');
 
   const handleLogin = async () => {
     const normalizedEmail = email.trim().toLowerCase();
@@ -199,54 +207,65 @@ export default function LoginScreen() {
         </TouchableOpacity>
 
         {/* OAuth Buttons */}
-        <View className="flex-row gap-3 mb-3" style={styles.oauthRow}>
-          <TouchableOpacity
-            className="flex-1 bg-gray-900 dark:bg-zinc-700 rounded-xl py-3 items-center"
-            style={styles.githubButton}
-            onPress={() => handleOAuthLogin('github')}
-            disabled={!!oauthLoading}
-            activeOpacity={0.8}
-          >
-            {oauthLoading === 'github' ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text className="text-white font-inter text-sm" style={styles.oauthText}>
-                GitHub
-              </Text>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            className="flex-1 bg-red-500 rounded-xl py-3 items-center"
-            style={styles.googleButton}
-            onPress={() => handleOAuthLogin('google')}
-            disabled={!!oauthLoading}
-            activeOpacity={0.8}
-          >
-            {oauthLoading === 'google' ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text className="text-white font-inter text-sm" style={styles.oauthText}>
-                Google
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
+        {(githubEnabled || googleEnabled || twitterEnabled) && (
+          <>
+            <View className="flex-row gap-3 mb-3" style={styles.oauthRow}>
+              {githubEnabled && (
+                <TouchableOpacity
+                  className="flex-1 bg-gray-900 dark:bg-zinc-700 rounded-xl py-3 items-center"
+                  style={styles.githubButton}
+                  onPress={() => handleOAuthLogin('github')}
+                  disabled={!!oauthLoading}
+                  activeOpacity={0.8}
+                >
+                  {oauthLoading === 'github' ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text className="text-white font-inter text-sm" style={styles.oauthText}>
+                      GitHub
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              )}
 
-        <TouchableOpacity
-          className="bg-sky-500 rounded-xl py-3 items-center mb-6"
-          style={styles.twitterButton}
-          onPress={() => handleOAuthLogin('twitter')}
-          disabled={!!oauthLoading}
-          activeOpacity={0.8}
-        >
-          {oauthLoading === 'twitter' ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text className="text-white font-inter text-sm" style={styles.oauthText}>
-              Twitter
-            </Text>
-          )}
-        </TouchableOpacity>
+              {googleEnabled && (
+                <TouchableOpacity
+                  className="flex-1 bg-red-500 rounded-xl py-3 items-center"
+                  style={styles.googleButton}
+                  onPress={() => handleOAuthLogin('google')}
+                  disabled={!!oauthLoading}
+                  activeOpacity={0.8}
+                >
+                  {oauthLoading === 'google' ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text className="text-white font-inter text-sm" style={styles.oauthText}>
+                      Google
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {twitterEnabled && (
+              <TouchableOpacity
+                className="bg-sky-500 rounded-xl py-3 items-center mb-6"
+                style={styles.twitterButton}
+                onPress={() => handleOAuthLogin('twitter')}
+                disabled={!!oauthLoading}
+                activeOpacity={0.8}
+              >
+                {oauthLoading === 'twitter' ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text className="text-white font-inter text-sm" style={styles.oauthText}>
+                    Twitter
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </>
+        )}
 
         {/* Register Link */}
         <View className="flex-row justify-center" style={styles.registerRow}>

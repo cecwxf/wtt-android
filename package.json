@@ -10,6 +10,9 @@
     "web": "expo start --web",
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
+    "release:check": "node ./scripts/release-check.mjs",
+    "build:play": "APP_VARIANT=global eas build --platform android --profile production-global",
+    "build:china": "APP_VARIANT=china eas build --platform android --profile production-china",
     "reset-project": "node ./scripts/reset-project.js"
   },
   "dependencies": {

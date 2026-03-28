@@ -71,6 +71,10 @@ function requireClientId(provider: OAuthProvider): string {
   return clientId;
 }
 
+export function isOAuthProviderEnabled(provider: OAuthProvider): boolean {
+  return !!providerConfig[provider].clientId?.trim();
+}
+
 function buildAuthorizeUrl(provider: OAuthProvider, state: string, codeVerifier?: string) {
   const conf = providerConfig[provider];
   const clientId = requireClientId(provider);
