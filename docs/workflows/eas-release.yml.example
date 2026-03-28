@@ -1,0 +1,90 @@
+name: EAS Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Release target"
+        required: true
+        default: "play"
+        type: choice
+        options:
+          - play
+          - china
+          - both
+      build_profile_play:
+        description: "EAS build profile for Google Play"
+        required: false
+        default: "production-global"
+      submit_profile_play:
+        description: "EAS submit profile for Google Play"
+        required: false
+        default: "production"
+      build_profile_china:
+        description: "EAS build profile for China"
+        required: false
+        default: "production-china"
+
+jobs:
+  release-play:
+    if: ${{ github.event.inputs.target == 'play' || github.event.inputs.target == 'both' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
+      GOOGLE_PLAY_KEY_PATH: ./google-play-key.json
+      EAS_BUILD_PROFILE: ${{ github.event.inputs.build_profile_play }}
+      EAS_SUBMIT_PROFILE: ${{ github.event.inputs.submit_profile_play }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Validate secrets
+        run: |
+          test -n "$EXPO_TOKEN" || (echo "Missing EXPO_TOKEN" && exit 1)
+          test -n "$EAS_PROJECT_ID" || (echo "Missing EAS_PROJECT_ID" && exit 1)
+          test -n "${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}" || (echo "Missing GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" && exit 1)
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Write Google Play key file
+        run: |
+          cat > "$GOOGLE_PLAY_KEY_PATH" <<'JSON'
+          ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          JSON
+
+      - name: Release to Google Play Internal
+        run: npm run release:play
+
+  release-china:
+    if: ${{ github.event.inputs.target == 'china' || github.event.inputs.target == 'both' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
+      EAS_BUILD_PROFILE: ${{ github.event.inputs.build_profile_china }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Validate secrets
+        run: |
+          test -n "$EXPO_TOKEN" || (echo "Missing EXPO_TOKEN" && exit 1)
+          test -n "$EAS_PROJECT_ID" || (echo "Missing EAS_PROJECT_ID" && exit 1)
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build China package via EAS
+        run: npm run release:china
