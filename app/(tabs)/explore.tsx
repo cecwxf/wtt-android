@@ -105,6 +105,15 @@ export default function ExploreScreen() {
         Alert.alert('Error', 'Please select an agent first.');
         return;
       }
+
+      if (topic.type === 'p2p') {
+        Alert.alert(
+          'P2P fixed membership',
+          'P2P topics are fixed to two agents. Use P2P request flow instead.',
+        );
+        return;
+      }
+
       setJoiningTopicId(topic.id);
       try {
         const isSubscribed = subscribedTopics.some((t) => t.id === topic.id);
@@ -144,9 +153,13 @@ export default function ExploreScreen() {
       const badgeColor = TYPE_BADGE_COLORS[item.type] || TYPE_BADGE_COLORS.discussion;
       const isSubscribed = subscribedIds.has(item.id);
       const isJoining = joiningTopicId === item.id;
+      const canToggleSubscribe = item.type !== 'p2p';
 
       return (
-        <View className="bg-white dark:bg-zinc-800 rounded-xl p-4 mx-4 mb-3 shadow-sm" style={styles.card}>
+        <View
+          className="bg-white dark:bg-zinc-800 rounded-xl p-4 mx-4 mb-3 shadow-sm"
+          style={styles.card}
+        >
           {/* Header row */}
           <View className="flex-row items-center justify-between mb-1" style={styles.cardHeader}>
             <Text
@@ -156,8 +169,16 @@ export default function ExploreScreen() {
             >
               {item.name}
             </Text>
-            <View className={`${badge.bg} rounded-full px-2 py-0.5`} style={[styles.typeBadge, { backgroundColor: badgeColor.bg }]}>
-              <Text className={`${badge.text} text-xs font-inter`} style={{ color: badgeColor.text, fontSize: 12 }}>{item.type}</Text>
+            <View
+              className={`${badge.bg} rounded-full px-2 py-0.5`}
+              style={[styles.typeBadge, { backgroundColor: badgeColor.bg }]}
+            >
+              <Text
+                className={`${badge.text} text-xs font-inter`}
+                style={{ color: badgeColor.text, fontSize: 12 }}
+              >
+                {item.type}
+              </Text>
             </View>
           </View>
 
@@ -183,7 +204,10 @@ export default function ExploreScreen() {
               className={`rounded-full px-2 py-0.5 mr-3 ${
                 item.join_method === 'open' ? 'bg-green-100' : 'bg-orange-100'
               }`}
-              style={[styles.joinBadge, { backgroundColor: item.join_method === 'open' ? '#DCFCE7' : '#FFEDD5' }]}
+              style={[
+                styles.joinBadge,
+                { backgroundColor: item.join_method === 'open' ? '#DCFCE7' : '#FFEDD5' },
+              ]}
             >
               <Text
                 className={`text-xs font-inter ${
@@ -195,35 +219,50 @@ export default function ExploreScreen() {
               </Text>
             </View>
 
-            <View className="bg-gray-100 dark:bg-zinc-700 rounded-full px-2 py-0.5" style={styles.visBadge}>
-              <Text className="text-xs text-gray-500 dark:text-gray-400 font-inter" style={styles.visText}>
+            <View
+              className="bg-gray-100 dark:bg-zinc-700 rounded-full px-2 py-0.5"
+              style={styles.visBadge}
+            >
+              <Text
+                className="text-xs text-gray-500 dark:text-gray-400 font-inter"
+                style={styles.visText}
+              >
                 {item.visibility}
               </Text>
             </View>
 
-            {/* Subscribe button */}
-            <TouchableOpacity
-              className={`ml-auto rounded-full px-3 py-1.5 ${
-                isSubscribed ? 'bg-gray-200 dark:bg-zinc-700' : 'bg-indigo-500'
-              }`}
-              style={[styles.subscribeBase, isSubscribed ? styles.subscribed : styles.notSubscribed]}
-              onPress={() => handleToggleSubscription(item)}
-              disabled={isJoining}
-              activeOpacity={0.7}
-            >
-              {isJoining ? (
-                <ActivityIndicator size="small" color={isSubscribed ? '#6B7280' : '#fff'} />
-              ) : (
-                <Text
-                  className={`text-xs font-inter-semibold ${
-                    isSubscribed ? 'text-gray-500 dark:text-gray-400' : 'text-white'
-                  }`}
-                  style={isSubscribed ? styles.subscribedText : styles.notSubscribedText}
-                >
-                  {isSubscribed ? 'Subscribed ✓' : 'Subscribe'}
-                </Text>
-              )}
-            </TouchableOpacity>
+            {/* Subscribe button / P2P fixed marker */}
+            {canToggleSubscribe ? (
+              <TouchableOpacity
+                className={`ml-auto rounded-full px-3 py-1.5 ${
+                  isSubscribed ? 'bg-gray-200 dark:bg-zinc-700' : 'bg-indigo-500'
+                }`}
+                style={[
+                  styles.subscribeBase,
+                  isSubscribed ? styles.subscribed : styles.notSubscribed,
+                ]}
+                onPress={() => handleToggleSubscription(item)}
+                disabled={isJoining}
+                activeOpacity={0.7}
+              >
+                {isJoining ? (
+                  <ActivityIndicator size="small" color={isSubscribed ? '#6B7280' : '#fff'} />
+                ) : (
+                  <Text
+                    className={`text-xs font-inter-semibold ${
+                      isSubscribed ? 'text-gray-500 dark:text-gray-400' : 'text-white'
+                    }`}
+                    style={isSubscribed ? styles.subscribedText : styles.notSubscribedText}
+                  >
+                    {isSubscribed ? 'Subscribed ✓' : 'Subscribe'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.p2pFixedPill}>
+                <Text style={styles.p2pFixedText}>P2P fixed</Text>
+              </View>
+            )}
           </View>
         </View>
       );
@@ -236,7 +275,9 @@ export default function ExploreScreen() {
     return (
       <View className="flex-1 items-center justify-center mt-20" style={styles.empty}>
         <Ionicons name="search-outline" size={48} color="#9CA3AF" />
-        <Text className="text-gray-400 font-inter mt-4 text-base" style={styles.emptyTitle}>No topics found</Text>
+        <Text className="text-gray-400 font-inter mt-4 text-base" style={styles.emptyTitle}>
+          No topics found
+        </Text>
         <Text className="text-gray-400 font-inter text-sm mt-1" style={styles.emptySubtitle}>
           {searchQuery ? 'Try a different search term' : 'Pull down to refresh'}
         </Text>
@@ -247,7 +288,10 @@ export default function ExploreScreen() {
   return (
     <View className="flex-1 bg-gray-50 dark:bg-zinc-900" style={styles.root}>
       {/* Search bar */}
-      <View className="flex-row items-center bg-white dark:bg-zinc-800 mx-4 mt-3 mb-2 px-3 py-2 rounded-xl" style={styles.searchBar}>
+      <View
+        className="flex-row items-center bg-white dark:bg-zinc-800 mx-4 mt-3 mb-2 px-3 py-2 rounded-xl"
+        style={styles.searchBar}
+      >
         <Ionicons name="search-outline" size={18} color="#9CA3AF" />
         <TextInput
           className="flex-1 ml-2 text-sm text-gray-900 dark:text-gray-100 font-inter"
@@ -261,7 +305,10 @@ export default function ExploreScreen() {
         />
         {isSearching && <ActivityIndicator size="small" color="#6366F1" />}
         {!!searchQuery && !isSearching && (
-          <TouchableOpacity onPress={handleClearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity
+            onPress={handleClearSearch}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
             <Ionicons name="close-circle" size={18} color="#9CA3AF" />
           </TouchableOpacity>
         )}
@@ -456,6 +503,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#fff',
+  },
+  p2pFixedPill: {
+    marginLeft: 'auto',
+    borderRadius: 9999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: '#EDE9FE',
+  },
+  p2pFixedText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#5B21B6',
   },
   loadingContainer: {
     flex: 1,

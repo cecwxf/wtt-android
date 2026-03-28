@@ -183,7 +183,14 @@ export const useTopicsStore = create<TopicsState>((set, get) => ({
     );
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Failed to join topic' }));
-      throw new Error(err.detail || 'Failed to join topic');
+      const detail = String((err as { detail?: unknown }).detail || 'Failed to join topic');
+      if (
+        detail.includes('P2P topic membership is fixed') ||
+        detail.includes('P2P topics do not support join')
+      ) {
+        throw new Error('P2P topics are fixed to two agents. Use P2P request flow instead.');
+      }
+      throw new Error(detail || 'Failed to join topic');
     }
     await get().fetchSubscribedTopics(token, agentId);
   },
@@ -204,7 +211,11 @@ export const useTopicsStore = create<TopicsState>((set, get) => ({
     );
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: 'Failed to leave topic' }));
-      throw new Error(err.detail || 'Failed to leave topic');
+      const detail = String((err as { detail?: unknown }).detail || 'Failed to leave topic');
+      if (detail.includes('Owner cannot leave')) {
+        throw new Error('Topic owner cannot leave this conversation.');
+      }
+      throw new Error(detail || 'Failed to leave topic');
     }
     await get().fetchSubscribedTopics(token, agentId);
   },
