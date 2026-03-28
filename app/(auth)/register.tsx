@@ -21,14 +21,33 @@ export default function RegisterScreen() {
   const register = useAuthStore((s) => s.register);
 
   const handleRegister = async () => {
-    if (!username.trim() || !email.trim() || !password.trim()) {
+    const normalizedName = username.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedName || !normalizedEmail || !password.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
+
+    if (password.length < 8) {
+      Alert.alert('Error', 'Password must be at least 8 characters');
+      return;
+    }
+
     setLoading(true);
     try {
-      await register(username.trim(), email.trim(), password);
-      router.replace('/(tabs)');
+      const result = await register(normalizedName, normalizedEmail, password);
+      const message = result?.message || 'Registration successful. Activation email sent.';
+      Alert.alert('Activation required', message, [
+        {
+          text: 'Go to Sign In',
+          onPress: () =>
+            router.replace({
+              pathname: '/(auth)/login',
+              params: { email: normalizedEmail, activation_hint: '1' },
+            }),
+        },
+      ]);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Registration failed';
       Alert.alert('Registration Failed', message);
@@ -45,13 +64,21 @@ export default function RegisterScreen() {
     >
       <View className="flex-1 justify-center px-8" style={styles.inner}>
         <View className="items-center mb-12" style={styles.logoArea}>
-          <Text className="text-4xl font-inter-bold text-primary" style={styles.title}>WTT</Text>
-          <Text className="text-base text-gray-500 dark:text-gray-400 mt-2 font-inter" style={styles.subtitle}>
+          <Text className="text-4xl font-inter-bold text-primary" style={styles.title}>
+            WTT
+          </Text>
+          <Text
+            className="text-base text-gray-500 dark:text-gray-400 mt-2 font-inter"
+            style={styles.subtitle}
+          >
             Create your account
           </Text>
         </View>
 
-        <Text className="text-sm font-inter text-gray-600 dark:text-gray-400 mb-1 ml-1" style={styles.label}>
+        <Text
+          className="text-sm font-inter text-gray-600 dark:text-gray-400 mb-1 ml-1"
+          style={styles.label}
+        >
           Username
         </Text>
         <TextInput
@@ -65,7 +92,10 @@ export default function RegisterScreen() {
           autoCorrect={false}
         />
 
-        <Text className="text-sm font-inter text-gray-600 dark:text-gray-400 mb-1 ml-1" style={styles.label}>
+        <Text
+          className="text-sm font-inter text-gray-600 dark:text-gray-400 mb-1 ml-1"
+          style={styles.label}
+        >
           Email
         </Text>
         <TextInput
@@ -80,7 +110,10 @@ export default function RegisterScreen() {
           autoCorrect={false}
         />
 
-        <Text className="text-sm font-inter text-gray-600 dark:text-gray-400 mb-1 ml-1" style={styles.label}>
+        <Text
+          className="text-sm font-inter text-gray-600 dark:text-gray-400 mb-1 ml-1"
+          style={styles.label}
+        >
           Password
         </Text>
         <TextInput
@@ -110,7 +143,10 @@ export default function RegisterScreen() {
         </TouchableOpacity>
 
         <View className="flex-row justify-center" style={styles.loginRow}>
-          <Text className="text-gray-500 dark:text-gray-400 font-inter text-sm" style={styles.loginText}>
+          <Text
+            className="text-gray-500 dark:text-gray-400 font-inter text-sm"
+            style={styles.loginText}
+          >
             Already have an account?{' '}
           </Text>
           <Link href="/(auth)/login" asChild>

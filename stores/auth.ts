@@ -12,6 +12,13 @@ interface User {
   avatar_url?: string;
 }
 
+interface RegisterResult {
+  ok: boolean;
+  message: string;
+  email?: string;
+  requires_activation?: boolean;
+}
+
 interface AuthState {
   token: string | null;
   user: User | null;
@@ -20,7 +27,8 @@ interface AuthState {
 
   login: (email: string, password: string) => Promise<void>;
   loginWithOAuth: (provider: OAuthProvider, oauth: OAuthCodeFlowResult) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
+  register: (username: string, email: string, password: string) => Promise<RegisterResult>;
+  resendActivation: (email: string) => Promise<{ ok: boolean; message: string; email?: string }>;
   logout: () => Promise<void>;
   loadToken: () => Promise<void>;
   setToken: (token: string, user?: User) => Promise<void>;
@@ -41,7 +49,11 @@ async function fetchCurrentUser(token: string): Promise<User | null> {
   }
 }
 
-async function persistSession(token: string, user: User | null, setState: (partial: Partial<AuthState>) => void) {
+async function persistSession(
+  token: string,
+  user: User | null,
+  setState: (partial: Partial<AuthState>) => void,
+) {
   await setSecureItem(TOKEN_KEY, token);
   if (user) {
     await setSecureItem(USER_KEY, JSON.stringify(user));
@@ -93,9 +105,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   register: async (username: string, email: string, password: string) => {
     const client = new WTTApiClient(WTT_API_URL);
-    await client.register(username, email, password);
-    // Auto-login after register
-    await get().login(email, password);
+    // Web parity: register requires email activation; do not auto-login.
+    return client.register(username, email, password);
+  },
+
+  resendActivation: async (email: string) => {
+    const client = new WTTApiClient(WTT_API_URL);
+    return client.resendActivation(email);
   },
 
   logout: async () => {

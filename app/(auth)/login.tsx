@@ -10,30 +10,59 @@ import {
   Alert,
   StyleSheet,
 } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '@/stores/auth';
 import { getOAuthRedirectUri, startOAuthCodeFlow, type OAuthProvider } from '@/lib/auth/oauth';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
+  const params = useLocalSearchParams<{ email?: string; activation_hint?: string }>();
+  const [email, setEmail] = useState(typeof params.email === 'string' ? params.email : '');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<OAuthProvider | null>(null);
+  const [resendingActivation, setResendingActivation] = useState(false);
   const login = useAuthStore((s) => s.login);
   const loginWithOAuth = useAuthStore((s) => s.loginWithOAuth);
+  const resendActivation = useAuthStore((s) => s.resendActivation);
 
   const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
     setLoading(true);
     try {
-      await login(email.trim(), password);
+      await login(normalizedEmail, password);
       router.replace('/(tabs)');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed';
-      Alert.alert('Login Failed', message);
+      if (message.includes('EMAIL_NOT_VERIFIED')) {
+        Alert.alert(
+          'Email not activated',
+          'Please activate your email first. Need me to resend activation email?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Resend',
+              onPress: async () => {
+                try {
+                  setResendingActivation(true);
+                  const data = await resendActivation(normalizedEmail);
+                  Alert.alert('Done', data?.message || 'Activation email sent');
+                } catch (e: unknown) {
+                  const msg = e instanceof Error ? e.message : 'Failed to resend activation email';
+                  Alert.alert('Resend failed', msg);
+                } finally {
+                  setResendingActivation(false);
+                }
+              },
+            },
+          ],
+        );
+      } else {
+        Alert.alert('Login Failed', message);
+      }
     } finally {
       setLoading(false);
     }
@@ -52,6 +81,24 @@ export default function LoginScreen() {
       }
     } finally {
       setOauthLoading(null);
+    }
+  };
+
+  const handleResendActivation = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      Alert.alert('Error', 'Please enter your email first');
+      return;
+    }
+    setResendingActivation(true);
+    try {
+      const data = await resendActivation(normalizedEmail);
+      Alert.alert('Done', data?.message || 'Activation email sent');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to resend activation email';
+      Alert.alert('Resend failed', message);
+    } finally {
+      setResendingActivation(false);
     }
   };
 
@@ -118,6 +165,21 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </Link>
         </View>
+
+        {(params.activation_hint === '1' || !!email.trim()) && (
+          <TouchableOpacity
+            style={styles.resendActivationBtn}
+            onPress={handleResendActivation}
+            disabled={resendingActivation || loading || !!oauthLoading}
+            activeOpacity={0.8}
+          >
+            {resendingActivation ? (
+              <ActivityIndicator color="#4F46E5" />
+            ) : (
+              <Text style={styles.resendActivationText}>Resend activation email</Text>
+            )}
+          </TouchableOpacity>
+        )}
 
         {/* Login Button */}
         <TouchableOpacity
@@ -268,6 +330,20 @@ const styles = StyleSheet.create({
   },
   forgotLink: {
     color: '#6366F1',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  resendActivationBtn: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  resendActivationText: {
+    color: '#4F46E5',
     fontSize: 13,
     fontWeight: '600',
   },

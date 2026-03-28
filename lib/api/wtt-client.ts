@@ -75,7 +75,12 @@ export class WTTApiClient {
 
   // Auth
   async register(displayName: string, email: string, password: string) {
-    return this.request('/auth/register', {
+    return this.request<{
+      ok: boolean;
+      message: string;
+      email?: string;
+      requires_activation?: boolean;
+    }>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({
         display_name: displayName,
@@ -83,6 +88,16 @@ export class WTTApiClient {
         password,
       }),
     });
+  }
+
+  async resendActivation(email: string) {
+    return this.request<{ ok: boolean; message: string; email?: string }>(
+      '/auth/resend-activation',
+      {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      },
+    );
   }
 
   async login(email: string, password: string) {
