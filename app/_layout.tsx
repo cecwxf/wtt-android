@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
-import { Stack } from 'expo-router';
+import { Redirect, Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -23,10 +23,13 @@ export default function RootLayout() {
   const loadToken = useAuthStore((s) => s.loadToken);
   const isLoading = useAuthStore((s) => s.isLoading);
   const loadAppSettings = useAppSettingsStore((s) => s.load);
+  const appSettingsLoaded = useAppSettingsStore((s) => s.loaded);
+  const privacyConsentAccepted = useAppSettingsStore((s) => s.privacyConsentAccepted);
   const token = useAuthStore((s) => s.token);
   const selectedAgentId = useAgentsStore((s) => s.selectedAgentId);
   const wsInitialize = useWebSocketStore((s) => s.initialize);
   const wsDisconnect = useWebSocketStore((s) => s.disconnect);
+  const pathname = usePathname();
   const [ready, setReady] = useState(false);
 
   const [fontsLoaded, fontError] = useFonts({
@@ -84,6 +87,14 @@ export default function RootLayout() {
         <ActivityIndicator size="large" color="#fff" />
       </View>
     );
+  }
+
+  // Compliance gate: require first-launch privacy consent before entering app flows.
+  if (ready && appSettingsLoaded && !privacyConsentAccepted && pathname !== '/(auth)/privacy-consent') {
+    return <Redirect href={'/(auth)/privacy-consent' as never} />;
+  }
+  if (ready && appSettingsLoaded && privacyConsentAccepted && pathname === '/(auth)/privacy-consent') {
+    return <Redirect href="/" />;
   }
 
   return (

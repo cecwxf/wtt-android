@@ -119,7 +119,7 @@ export default function RegisterScreen() {
         <TextInput
           className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-6 font-inter"
           style={styles.passwordInput}
-          placeholder="Password (min 6 chars)"
+          placeholder="Password (min 8 chars)"
           placeholderTextColor="#9CA3AF"
           value={password}
           onChangeText={setPassword}
