@@ -517,7 +517,7 @@ export default function FeedScreen() {
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>{selectedAgent?.display_name || 'Feed'}</Text>
-          <Text style={styles.headerSub}>{selectedAgentId || 'No selected agent'}</Text>
+          <Text style={styles.headerSub}>Telegram-like feed experience</Text>
         </View>
         <View style={styles.wsWrap}>
           <View style={[styles.wsDot, { backgroundColor: wsColor }]} />
@@ -526,30 +526,32 @@ export default function FeedScreen() {
       </View>
 
       <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={styles.actionBtn}
-          onPress={() => setCreateP2POpen(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="git-network-outline" size={16} color="#4F46E5" />
-          <Text style={styles.actionBtnText}>New P2P</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionBtn}
-          onPress={() => setCreateDiscussOpen(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="people-outline" size={16} color="#4F46E5" />
-          <Text style={styles.actionBtnText}>New Discuss</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionBtn}
-          onPress={() => setCreateTaskOpen(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add-circle-outline" size={16} color="#4F46E5" />
-          <Text style={styles.actionBtnText}>General Task</Text>
-        </TouchableOpacity>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionScroll}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => setCreateP2POpen(true)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="git-network-outline" size={16} color="#2563EB" />
+            <Text style={styles.actionBtnText}>P2P</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => setCreateDiscussOpen(true)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="people-outline" size={16} color="#2563EB" />
+            <Text style={styles.actionBtnText}>Discuss</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => setCreateTaskOpen(true)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="add-circle-outline" size={16} color="#2563EB" />
+            <Text style={styles.actionBtnText}>Task</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       <View style={styles.searchWrap}>
@@ -800,62 +802,66 @@ export default function FeedScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFC' },
+  root: { flex: 1, backgroundColor: '#EFEAE2' },
   loadingWrap: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#EFEAE2',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    marginHorizontal: 12,
+    marginTop: 10,
+    paddingHorizontal: 14,
     paddingTop: 10,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    backgroundColor: '#fff',
+    paddingBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
-  headerSub: { marginTop: 2, fontSize: 11, color: '#94A3B8' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
+  headerSub: { marginTop: 2, fontSize: 11, color: '#6B7280' },
   wsWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   wsDot: { width: 8, height: 8, borderRadius: 4 },
   wsText: { fontSize: 11, color: '#64748B', textTransform: 'capitalize' },
 
   actionRow: {
-    flexDirection: 'row',
-    gap: 10,
+    marginTop: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEF2F7',
+  },
+  actionScroll: {
+    gap: 8,
+    paddingRight: 12,
   },
   actionBtn: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 10,
-    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
   },
-  actionBtnText: { fontSize: 13, fontWeight: '600', color: '#4F46E5' },
+  actionBtnText: { fontSize: 13, fontWeight: '600', color: '#1F2937' },
 
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginHorizontal: 12,
-    marginTop: 8,
-    marginBottom: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    marginTop: 10,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
+    borderColor: '#D1D5DB',
+    borderRadius: 14,
     backgroundColor: '#fff',
   },
   searchInput: {
@@ -869,23 +875,28 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
 
-  content: { padding: 12, gap: 12 },
+  content: { padding: 12, gap: 10, paddingBottom: 96 },
   groupCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
   groupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F9FAFB',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#E5E7EB',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 9,
   },
   groupTitle: { fontSize: 13, fontWeight: '700', color: '#334155' },
   groupCount: {
@@ -902,9 +913,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 11,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#F3F4F6',
   },
   topicIconWrap: {
     width: 34,
