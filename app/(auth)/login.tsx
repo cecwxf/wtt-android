@@ -135,65 +135,71 @@ export default function LoginScreen() {
           <Text style={styles.tagline}>Agent Communication Platform</Text>
         </View>
 
-        {/* OAuth — primary sign-in */}
-        {anyOAuth && (
-          <View style={styles.oauthSection}>
-            <View style={styles.oauthRow}>
-              {githubEnabled && (
-                <TouchableOpacity
-                  style={[styles.oauthCircle, { backgroundColor: '#1F2937' }]}
-                  onPress={() => handleOAuthLogin('github')}
-                  disabled={!!oauthLoading}
-                >
-                  {oauthLoading === 'github' ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text style={styles.oauthEmoji}>🐙</Text>
-                  )}
-                </TouchableOpacity>
-              )}
-              {googleEnabled && (
-                <TouchableOpacity
-                  style={[styles.oauthCircle, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' }]}
-                  onPress={() => handleOAuthLogin('google')}
-                  disabled={!!oauthLoading}
-                >
-                  {oauthLoading === 'google' ? (
-                    <ActivityIndicator color="#EA4335" size="small" />
-                  ) : (
-                    <Text style={styles.oauthEmojiDark}>G</Text>
-                  )}
-                </TouchableOpacity>
-              )}
-              {twitterEnabled && (
-                <TouchableOpacity
-                  style={[styles.oauthCircle, { backgroundColor: '#1D9BF0' }]}
-                  onPress={() => handleOAuthLogin('twitter')}
-                  disabled={!!oauthLoading}
-                >
-                  {oauthLoading === 'twitter' ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text style={styles.oauthEmoji}>𝕏</Text>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        )}
-
-        {/* QR Login */}
+        {/* QR Login — top */}
         <TouchableOpacity
-          style={styles.qrBtn}
+          style={styles.providerBtn}
           onPress={() => router.push('/(auth)/qr-login' as never)}
           disabled={busy}
-          activeOpacity={0.8}
+          activeOpacity={0.7}
         >
-          <View style={styles.qrIconBox}>
-            <Text style={styles.qrIcon}>⎔</Text>
+          <View style={[styles.providerIcon, { backgroundColor: '#EEF2FF' }]}>
+            <Text style={styles.qrGlyph}>⎔</Text>
           </View>
-          <Text style={styles.qrText}>Log in by QR Code</Text>
+          <Text style={styles.providerLabel}>Scan QR Code</Text>
         </TouchableOpacity>
+
+        {/* OAuth — full-width rows like wtt-web */}
+        {googleEnabled && (
+          <TouchableOpacity
+            style={styles.providerBtn}
+            onPress={() => handleOAuthLogin('google')}
+            disabled={!!oauthLoading}
+            activeOpacity={0.7}
+          >
+            {oauthLoading === 'google' ? (
+              <ActivityIndicator color="#EA4335" size="small" style={styles.providerSpinner} />
+            ) : (
+              <View style={[styles.providerIcon, { backgroundColor: '#FEF2F2' }]}>
+                <Text style={styles.googleG}>G</Text>
+              </View>
+            )}
+            <Text style={styles.providerLabel}>Continue with Google</Text>
+          </TouchableOpacity>
+        )}
+        {githubEnabled && (
+          <TouchableOpacity
+            style={styles.providerBtn}
+            onPress={() => handleOAuthLogin('github')}
+            disabled={!!oauthLoading}
+            activeOpacity={0.7}
+          >
+            {oauthLoading === 'github' ? (
+              <ActivityIndicator color="#1F2937" size="small" style={styles.providerSpinner} />
+            ) : (
+              <View style={[styles.providerIcon, { backgroundColor: '#F1F5F9' }]}>
+                <Text style={styles.githubEmoji}>🐙</Text>
+              </View>
+            )}
+            <Text style={styles.providerLabel}>Continue with GitHub</Text>
+          </TouchableOpacity>
+        )}
+        {twitterEnabled && (
+          <TouchableOpacity
+            style={styles.providerBtn}
+            onPress={() => handleOAuthLogin('twitter')}
+            disabled={!!oauthLoading}
+            activeOpacity={0.7}
+          >
+            {oauthLoading === 'twitter' ? (
+              <ActivityIndicator color="#1D9BF0" size="small" style={styles.providerSpinner} />
+            ) : (
+              <View style={[styles.providerIcon, { backgroundColor: '#EFF6FF' }]}>
+                <Text style={styles.twitterX}>𝕏</Text>
+              </View>
+            )}
+            <Text style={styles.providerLabel}>Continue with Twitter</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Divider */}
         <View style={styles.dividerRow}>
@@ -289,7 +295,7 @@ const styles = StyleSheet.create({
   },
   logoArea: {
     alignItems: 'center',
-    marginBottom: 36,
+    marginBottom: 32,
   },
   logoBadge: {
     width: 72,
@@ -315,6 +321,69 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#94A3B8',
     marginTop: 4,
+    fontWeight: '500',
+  },
+  providerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingVertical: 13,
+    backgroundColor: '#F8FAFC',
+    marginBottom: 10,
+  },
+  providerIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  providerSpinner: {
+    width: 28,
+    height: 28,
+  },
+  providerLabel: {
+    color: '#334155',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  qrGlyph: {
+    fontSize: 16,
+    color: '#6366F1',
+    fontWeight: '700',
+  },
+  googleG: {
+    fontSize: 16,
+    color: '#EA4335',
+    fontWeight: '700',
+  },
+  githubEmoji: {
+    fontSize: 16,
+  },
+  twitterX: {
+    fontSize: 16,
+    color: '#1D9BF0',
+    fontWeight: '700',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    marginBottom: 18,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E2E8F0',
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    fontSize: 12,
+    color: '#94A3B8',
     fontWeight: '500',
   },
   form: {
@@ -364,75 +433,6 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.6,
-  },
-  qrBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingVertical: 13,
-    backgroundColor: '#FAFAFA',
-  },
-  qrIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 7,
-    backgroundColor: '#EEF2FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  qrIcon: {
-    fontSize: 16,
-    color: '#6366F1',
-    fontWeight: '700',
-  },
-  qrText: {
-    color: '#334155',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  oauthSection: {
-    marginBottom: 8,
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 18,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E2E8F0',
-  },
-  dividerText: {
-    marginHorizontal: 12,
-    fontSize: 12,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  oauthRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 20,
-  },
-  oauthCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  oauthEmoji: {
-    fontSize: 20,
-    color: '#FFFFFF',
-  },
-  oauthEmojiDark: {
-    fontSize: 20,
-    color: '#EA4335',
-    fontWeight: '700',
   },
   registerRow: {
     flexDirection: 'row',
