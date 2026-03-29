@@ -210,52 +210,78 @@ export default function ChatScreen() {
     return topicId ?? 'Chat';
   }, [topicId, topicName]);
 
-  const renderMessage = ({ item }: { item: Message }) => {
+  const getDateLabel = (ts: string) => {
+    const d = new Date(ts);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (d.toDateString() === today.toDateString()) return 'Today';
+    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const shouldShowDateSep = (idx: number) => {
+    if (idx === 0) return true;
+    const prev = messages[idx - 1];
+    const curr = messages[idx];
+    return new Date(prev.timestamp).toDateString() !== new Date(curr.timestamp).toDateString();
+  };
+
+  const AGENT_COLORS = ['#6366F1', '#EC4899', '#14B8A6', '#F97316', '#8B5CF6', '#EF4444'];
+  const agentColor = (id: string) => AGENT_COLORS[Math.abs([...id].reduce((a, c) => a + c.charCodeAt(0), 0)) % AGENT_COLORS.length];
+
+  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const isUser = item.sender_type === 'human';
     const useMd = hasMarkdown(item.content);
+    const showDate = shouldShowDateSep(index);
 
     return (
-      <View
-        className={`px-4 py-1 ${isUser ? 'items-end' : 'items-start'}`}
-        style={[cs.msgRow, isUser ? cs.msgRowUser : cs.msgRowAgent]}
-      >
-        {!isUser && (
-          <Text className="text-xs text-indigo-500 font-inter mb-1 ml-1" style={cs.senderLabel}>
-            {item.sender_id}
-          </Text>
+      <>
+        {showDate && (
+          <View style={cs.dateSep}>
+            <View style={cs.dateSepLine} />
+            <Text style={cs.dateSepText}>{getDateLabel(item.timestamp)}</Text>
+            <View style={cs.dateSepLine} />
+          </View>
         )}
         <View
-          className={`max-w-[85%] rounded-2xl px-3 py-2 ${
-            isUser
-              ? 'bg-indigo-50 rounded-tr-lg'
-              : 'bg-white rounded-tl-lg border border-gray-100'
-          }`}
-          style={[cs.bubble, isUser ? cs.bubbleUser : cs.bubbleAgent]}
+          style={[cs.msgRow, isUser ? cs.msgRowUser : cs.msgRowAgent]}
         >
-          {useMd ? (
-            <Markdown style={isUser ? userMdStyles : agentMdStyles}>
-              {item.content}
-            </Markdown>
-          ) : (
-            <Text
-              className={`text-[15px] font-inter leading-5 ${
-                isUser ? 'text-gray-900' : 'text-gray-800'
-              }`}
-              style={cs.msgText}
-            >
-              {item.content}
-            </Text>
+          {/* Agent avatar */}
+          {!isUser && (
+            <View style={[cs.agentAvatar, { backgroundColor: agentColor(item.sender_id) }]}>
+              <Text style={cs.agentAvatarText}>
+                {(item.sender_id || '?')[0].toUpperCase()}
+              </Text>
+            </View>
           )}
-          <Text
-            className={`text-[11px] font-inter mt-1 ${
-              isUser ? 'text-right text-gray-400' : 'text-gray-400'
-            }`}
-            style={[cs.timestamp, isUser && cs.timestampRight]}
-          >
-            {formatTime(item.timestamp)}
-          </Text>
+          <View style={{ flex: 1, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
+            {!isUser && (
+              <Text style={cs.senderLabel}>
+                {item.sender_id}
+              </Text>
+            )}
+            <View
+              style={[cs.bubble, isUser ? cs.bubbleUser : cs.bubbleAgent]}
+            >
+              {useMd ? (
+                <Markdown style={isUser ? userMdStyles : agentMdStyles}>
+                  {item.content}
+                </Markdown>
+              ) : (
+                <Text style={cs.msgText}>
+                  {item.content}
+                </Text>
+              )}
+              <Text
+                style={[cs.timestamp, isUser && cs.timestampRight]}
+              >
+                {formatTime(item.timestamp)}
+              </Text>
+            </View>
+          </View>
         </View>
-      </View>
+      </>
     );
   };
 
@@ -424,10 +450,12 @@ const cs = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
   emptyText: { marginTop: 12, color: '#9CA3AF', fontSize: 14 },
-  msgRow: { paddingHorizontal: 16, paddingVertical: 4 },
-  msgRowUser: { alignItems: 'flex-end' },
+  msgRow: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 4 },
+  msgRowUser: { justifyContent: 'flex-end' },
   msgRowAgent: { alignItems: 'flex-start' },
-  senderLabel: { fontSize: 12, color: '#6366F1', marginBottom: 4, marginLeft: 4 },
+  agentAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginRight: 8, marginTop: 18 },
+  agentAvatarText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
+  senderLabel: { fontSize: 12, color: '#6366F1', marginBottom: 2, marginLeft: 2 },
   bubble: { maxWidth: '85%', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
   bubbleUser: { backgroundColor: '#EEF2FF', borderTopRightRadius: 8 },
   bubbleAgent: { backgroundColor: '#fff', borderTopLeftRadius: 8, borderWidth: 1, borderColor: '#F3F4F6' },
@@ -455,4 +483,7 @@ const cs = StyleSheet.create({
   sendBtn: { padding: 8, borderRadius: 9999 },
   sendActive: { backgroundColor: '#6366F1' },
   sendInactive: { backgroundColor: '#E5E7EB' },
+  dateSep: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 10 },
+  dateSepLine: { flex: 1, height: 0.5, backgroundColor: '#E5E7EB' },
+  dateSepText: { fontSize: 12, color: '#9CA3AF', paddingHorizontal: 10, fontWeight: '500' },
 });

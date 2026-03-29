@@ -40,6 +40,12 @@
         {
           "photosPermission": "Allow WTT to access your photos to share images in chats."
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow WTT to access your camera to scan QR codes for login."
+        }
       ]
     ],
     "experiments": {

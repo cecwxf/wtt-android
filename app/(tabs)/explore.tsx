@@ -147,124 +147,76 @@ export default function ExploreScreen() {
     return source.filter((t) => t.type === activeFilter);
   }, [topics, searchResults, activeFilter]);
 
-  const renderTopicCard = useCallback(
+  const AVATAR_ICONS: Record<string, string> = {
+    broadcast: '📡',
+    discussion: '💬',
+    p2p: '🔒',
+    collaborative: '🤝',
+  };
+
+  const renderTopicRow = useCallback(
     ({ item }: { item: Topic }) => {
-      const badge = TYPE_BADGE_STYLES[item.type] || TYPE_BADGE_STYLES.discussion;
       const badgeColor = TYPE_BADGE_COLORS[item.type] || TYPE_BADGE_COLORS.discussion;
       const isSubscribed = subscribedIds.has(item.id);
       const isJoining = joiningTopicId === item.id;
       const canToggleSubscribe = item.type !== 'p2p';
+      const emoji = AVATAR_ICONS[item.type] || '💬';
 
       return (
-        <View
-          className="bg-white dark:bg-zinc-800 rounded-xl p-4 mx-4 mb-3 shadow-sm"
-          style={styles.card}
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() =>
+            router.push({ pathname: '/chat/[id]', params: { id: item.id, name: item.name } })
+          }
+          activeOpacity={0.7}
         >
-          {/* Header row */}
-          <View className="flex-row items-center justify-between mb-1" style={styles.cardHeader}>
-            <Text
-              className="text-base font-inter-semibold text-gray-900 dark:text-gray-100 flex-1 mr-2"
-              style={styles.cardTitle}
-              numberOfLines={1}
-            >
-              {item.name}
-            </Text>
-            <View
-              className={`${badge.bg} rounded-full px-2 py-0.5`}
-              style={[styles.typeBadge, { backgroundColor: badgeColor.bg }]}
-            >
-              <Text
-                className={`${badge.text} text-xs font-inter`}
-                style={{ color: badgeColor.text, fontSize: 12 }}
-              >
-                {item.type}
-              </Text>
-            </View>
+          {/* Avatar */}
+          <View style={[styles.rowAvatar, { backgroundColor: badgeColor.bg }]}>
+            <Text style={styles.rowAvatarEmoji}>{emoji}</Text>
           </View>
 
-          {/* Description */}
-          {!!item.description && (
-            <Text
-              className="text-sm text-gray-500 dark:text-gray-400 font-inter mt-1"
-              style={styles.cardDescription}
-              numberOfLines={2}
-            >
-              {item.description}
-            </Text>
-          )}
-
-          {/* Meta row */}
-          <View className="flex-row items-center mt-3" style={styles.metaRow}>
-            <Ionicons name="people-outline" size={14} color="#9CA3AF" />
-            <Text className="text-xs text-gray-400 font-inter ml-1 mr-3" style={styles.memberCount}>
-              {item.member_count ?? 0}
-            </Text>
-
-            <View
-              className={`rounded-full px-2 py-0.5 mr-3 ${
-                item.join_method === 'open' ? 'bg-green-100' : 'bg-orange-100'
-              }`}
-              style={[
-                styles.joinBadge,
-                { backgroundColor: item.join_method === 'open' ? '#DCFCE7' : '#FFEDD5' },
-              ]}
-            >
-              <Text
-                className={`text-xs font-inter ${
-                  item.join_method === 'open' ? 'text-green-700' : 'text-orange-700'
-                }`}
-                style={{ fontSize: 12, color: item.join_method === 'open' ? '#15803D' : '#C2410C' }}
-              >
-                {item.join_method === 'open' ? 'Open' : 'Invite'}
-              </Text>
-            </View>
-
-            <View
-              className="bg-gray-100 dark:bg-zinc-700 rounded-full px-2 py-0.5"
-              style={styles.visBadge}
-            >
-              <Text
-                className="text-xs text-gray-500 dark:text-gray-400 font-inter"
-                style={styles.visText}
-              >
-                {item.visibility}
-              </Text>
-            </View>
-
-            {/* Subscribe button / P2P fixed marker */}
-            {canToggleSubscribe ? (
-              <TouchableOpacity
-                className={`ml-auto rounded-full px-3 py-1.5 ${
-                  isSubscribed ? 'bg-gray-200 dark:bg-zinc-700' : 'bg-indigo-500'
-                }`}
-                style={[
-                  styles.subscribeBase,
-                  isSubscribed ? styles.subscribed : styles.notSubscribed,
-                ]}
-                onPress={() => handleToggleSubscription(item)}
-                disabled={isJoining}
-                activeOpacity={0.7}
-              >
-                {isJoining ? (
-                  <ActivityIndicator size="small" color={isSubscribed ? '#6B7280' : '#fff'} />
-                ) : (
-                  <Text
-                    className={`text-xs font-inter-semibold ${
-                      isSubscribed ? 'text-gray-500 dark:text-gray-400' : 'text-white'
-                    }`}
-                    style={isSubscribed ? styles.subscribedText : styles.notSubscribedText}
-                  >
-                    {isSubscribed ? 'Subscribed ✓' : 'Subscribe'}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.p2pFixedPill}>
-                <Text style={styles.p2pFixedText}>P2P fixed</Text>
+          {/* Text column */}
+          <View style={styles.rowTextCol}>
+            <View style={styles.rowTitleRow}>
+              <Text style={styles.rowName} numberOfLines={1}>{item.name}</Text>
+              <View style={[styles.rowTypeBadge, { backgroundColor: badgeColor.bg }]}>
+                <Text style={[styles.rowTypeText, { color: badgeColor.text }]}>{item.type}</Text>
               </View>
+            </View>
+            {!!item.description && (
+              <Text style={styles.rowDesc} numberOfLines={1}>{item.description}</Text>
             )}
+            <View style={styles.rowMeta}>
+              <Ionicons name="people-outline" size={12} color="#9CA3AF" />
+              <Text style={styles.rowMembers}>{item.member_count ?? 0}</Text>
+              <Text style={styles.rowJoinMethod}>
+                {item.join_method === 'open' ? '• Open' : '• Invite'}
+              </Text>
+            </View>
           </View>
-        </View>
+
+          {/* Subscribe / P2P pill */}
+          {canToggleSubscribe ? (
+            <TouchableOpacity
+              style={[styles.rowSubBtn, isSubscribed ? styles.rowSubbed : styles.rowNotSubbed]}
+              onPress={() => handleToggleSubscription(item)}
+              disabled={isJoining}
+              activeOpacity={0.7}
+            >
+              {isJoining ? (
+                <ActivityIndicator size="small" color={isSubscribed ? '#6B7280' : '#fff'} />
+              ) : (
+                <Text style={isSubscribed ? styles.rowSubbedText : styles.rowNotSubbedText}>
+                  {isSubscribed ? '✓' : 'Join'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.p2pFixedPill}>
+              <Text style={styles.p2pFixedText}>P2P</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       );
     },
     [subscribedIds, joiningTopicId, handleToggleSubscription],
@@ -356,7 +308,8 @@ export default function ExploreScreen() {
         <FlatList
           data={displayedTopics}
           keyExtractor={(item) => item.id}
-          renderItem={renderTopicCard}
+          renderItem={renderTopicRow}
+          ItemSeparatorComponent={() => <View style={styles.rowDivider} />}
           ListEmptyComponent={renderEmptyState}
           contentContainerStyle={{ paddingTop: 4, paddingBottom: 24, flexGrow: 1 }}
           refreshControl={
@@ -427,94 +380,97 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textTransform: 'capitalize',
   },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
-  },
-  cardHeader: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
-  cardTitle: {
+  rowAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  rowAvatarEmoji: {
+    fontSize: 22,
+  },
+  rowTextCol: {
+    flex: 1,
+    marginRight: 8,
+  },
+  rowTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  rowName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#111827',
     flex: 1,
-    marginRight: 8,
+    marginRight: 6,
   },
-  typeBadge: {
+  rowTypeBadge: {
     borderRadius: 9999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
   },
-  cardDescription: {
-    fontSize: 14,
+  rowTypeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  rowDesc: {
+    fontSize: 13,
     color: '#6B7280',
-    marginTop: 4,
+    marginBottom: 2,
   },
-  metaRow: {
+  rowMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
   },
-  memberCount: {
+  rowMembers: {
     fontSize: 12,
     color: '#9CA3AF',
-    marginLeft: 4,
-    marginRight: 12,
+    marginLeft: 3,
+    marginRight: 6,
   },
-  joinBadge: {
-    borderRadius: 9999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    marginRight: 12,
-  },
-  visBadge: {
-    backgroundColor: '#F3F4F6',
-    borderRadius: 9999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  visText: {
+  rowJoinMethod: {
     fontSize: 12,
-    color: '#6B7280',
+    color: '#9CA3AF',
   },
-  subscribeBase: {
-    marginLeft: 'auto',
+  rowSubBtn: {
     borderRadius: 9999,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 6,
+    minWidth: 44,
+    alignItems: 'center',
   },
-  subscribed: {
+  rowSubbed: {
     backgroundColor: '#E5E7EB',
   },
-  notSubscribed: {
+  rowNotSubbed: {
     backgroundColor: '#6366F1',
   },
-  subscribedText: {
+  rowSubbedText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#6B7280',
   },
-  notSubscribedText: {
+  rowNotSubbedText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#fff',
   },
+  rowDivider: {
+    height: 0.5,
+    backgroundColor: '#E5E7EB',
+    marginLeft: 76,
+  },
   p2pFixedPill: {
-    marginLeft: 'auto',
     borderRadius: 9999,
     paddingHorizontal: 10,
     paddingVertical: 5,

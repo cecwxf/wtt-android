@@ -209,6 +209,39 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Linked Devices */}
+      <View className="mx-4 mb-4" style={styles.section}>
+        <Text className="text-sm font-semibold text-gray-500 mb-2 ml-1" style={styles.sectionTitle}>
+          Linked Devices
+        </Text>
+        <View className="bg-white rounded-xl overflow-hidden" style={styles.card}>
+          <TouchableOpacity
+            className="flex-row items-center px-4 py-3 border-b border-gray-50"
+            style={[styles.settingsRow, styles.rowBorder]}
+            onPress={() => router.push('/(auth)/qr-login')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="qr-code-outline" size={20} color="#6366F1" />
+            <Text className="flex-1 ml-3 text-base text-gray-900" style={styles.settingsLabel}>
+              Scan QR to Link
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
+          </TouchableOpacity>
+          <View
+            className="flex-row items-center px-4 py-3"
+            style={styles.settingsRow}
+          >
+            <Ionicons name="phone-portrait-outline" size={20} color="#64748B" />
+            <Text className="flex-1 ml-3 text-base text-gray-900" style={styles.settingsLabel}>
+              This Device
+            </Text>
+            <Text className="text-sm text-green-500" style={{ fontSize: 14, color: '#22C55E' }}>
+              Active
+            </Text>
+          </View>
+        </View>
+      </View>
+
       {/* Settings */}
       <View className="mx-4 mb-4" style={styles.section}>
         <Text className="text-sm font-semibold text-gray-500 mb-2 ml-1" style={styles.sectionTitle}>
