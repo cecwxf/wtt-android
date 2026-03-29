@@ -57,7 +57,6 @@ export default function QrLoginScreen() {
   const [scanned, setScanned] = useState(false);
   const setToken = useAuthStore((s) => s.setToken);
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
-  const selectAgent = useAgentsStore((s) => s.selectAgent);
 
   const appVersion = useMemo(() => String(Constants.expoConfig?.version || 'unknown'), []);
 
@@ -94,17 +93,8 @@ export default function QrLoginScreen() {
       await setToken(data.access_token, user);
 
       // Align mobile selected agent with web-selected agent at QR creation time.
+      // Load all claimed agents after QR login; user can switch freely on mobile.
       await fetchAgents(data.access_token);
-      const allAgents = useAgentsStore.getState().agents;
-      if (
-        data.preferred_agent_id &&
-        allAgents.some((a) => a.agent_id === data.preferred_agent_id)
-      ) {
-        await selectAgent(data.preferred_agent_id);
-      } else if (allAgents.length > 0) {
-        // fallback to first available agent when preferred one is unavailable
-        await selectAgent(allAgents[0].agent_id);
-      }
 
       Alert.alert('Success', '扫码登录成功');
       router.replace('/(tabs)');
