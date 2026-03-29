@@ -68,6 +68,7 @@ export default function FeedScreen() {
   const agents = useAgentsStore((s) => s.agents);
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
   const loadSelectedAgent = useAgentsStore((s) => s.loadSelectedAgent);
+  const selectAgent = useAgentsStore((s) => s.selectAgent);
 
   const wsState = useWebSocketStore((s) => s.wsState);
   const wsLastEventAt = useWebSocketStore((s) => s.lastEventAt);
@@ -525,107 +526,125 @@ export default function FeedScreen() {
         </View>
       </View>
 
-      <View style={styles.actionRow}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.actionScroll}
-        >
+      <View style={styles.bodyRow}>
+        <View style={styles.agentRail}>
           <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => setCreateP2POpen(true)}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="git-network-outline" size={16} color="#2563EB" />
-            <Text style={styles.actionBtnText}>P2P</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => setCreateDiscussOpen(true)}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="people-outline" size={16} color="#2563EB" />
-            <Text style={styles.actionBtnText}>Discuss</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.actionBtn}
+            style={styles.railNewTaskBtn}
             onPress={() => setCreateTaskOpen(true)}
             activeOpacity={0.85}
           >
-            <Ionicons name="add-circle-outline" size={16} color="#2563EB" />
-            <Text style={styles.actionBtnText}>Task</Text>
+            <Ionicons name="add" size={18} color="#2563EB" />
           </TouchableOpacity>
-        </ScrollView>
-      </View>
 
-      <View style={styles.searchWrap}>
-        <Ionicons name="search-outline" size={16} color="#94A3B8" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search topic..."
-          placeholderTextColor="#94A3B8"
-          value={topicSearch}
-          onChangeText={setTopicSearch}
-        />
-        {!!topicSearch.trim() && (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.railList}>
+            {agents.map((agent) => {
+              const selected = agent.agent_id === selectedAgentId;
+              const label = (agent.display_name || agent.agent_id || 'A').trim();
+              const avatar = label[0]?.toUpperCase() || 'A';
+              return (
+                <TouchableOpacity
+                  key={agent.agent_id}
+                  style={[styles.railAgentBtn, selected && styles.railAgentBtnSelected]}
+                  onPress={() => {
+                    void selectAgent(agent.agent_id);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.railAgentText, selected && styles.railAgentTextSelected]}>
+                    {avatar}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
           <TouchableOpacity
-            onPress={() => setTopicSearch('')}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.railActionBtn}
+            onPress={() => setCreateP2POpen(true)}
+            activeOpacity={0.85}
           >
-            <Ionicons name="close-circle" size={16} color="#94A3B8" />
+            <Ionicons name="git-network-outline" size={16} color="#374151" />
           </TouchableOpacity>
-        )}
-      </View>
+          <TouchableOpacity
+            style={styles.railActionBtn}
+            onPress={() => setCreateDiscussOpen(true)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="people-outline" size={16} color="#374151" />
+          </TouchableOpacity>
+        </View>
 
-      <ScrollView
-        style={{ flex: 1 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366F1" />
-        }
-        contentContainerStyle={styles.content}
-      >
-        {!!topicSearch.trim() && (
-          <Text style={styles.searchResultText}>Search result: {grouped.total}</Text>
-        )}
-
-        {p2pRequests.length > 0 && (
-          <View style={styles.groupCard}>
-            <View style={styles.groupHeader}>
-              <Text style={styles.groupTitle}>Pending P2P Requests</Text>
-              <Text style={styles.groupCount}>{p2pRequests.length}</Text>
-            </View>
-            {p2pRequests.map((r) => (
-              <View key={r.id} style={styles.requestRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.requestTitle}>
-                    {r.from_agent_id || 'Unknown'} → {r.target_agent_id || '-'}
-                  </Text>
-                  <Text style={styles.requestDesc} numberOfLines={1}>
-                    {r.message || 'P2P request'}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.acceptBtn}
-                  onPress={() => handleAcceptRequest(r.id)}
-                >
-                  <Text style={styles.acceptBtnText}>Accept</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.rejectBtn}
-                  onPress={() => handleRejectRequest(r.id)}
-                >
-                  <Text style={styles.rejectBtnText}>Reject</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
+        <View style={styles.mainPane}>
+          <View style={styles.searchWrap}>
+            <Ionicons name="search-outline" size={16} color="#94A3B8" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search topic..."
+              placeholderTextColor="#94A3B8"
+              value={topicSearch}
+              onChangeText={setTopicSearch}
+            />
+            {!!topicSearch.trim() && (
+              <TouchableOpacity
+                onPress={() => setTopicSearch('')}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close-circle" size={16} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
           </View>
-        )}
 
-        {renderGroup('General Tasks', grouped.generalTasks, 'No general task topics')}
-        {renderGroup('P2P', grouped.p2p, 'No p2p topics')}
-        {renderGroup('Discuss', grouped.discuss, 'No discuss topics')}
-        {renderGroup('Subscriber', grouped.subscriber, 'No subscriber topics')}
-      </ScrollView>
+          <ScrollView
+            style={{ flex: 1 }}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366F1" />
+            }
+            contentContainerStyle={styles.content}
+          >
+            {!!topicSearch.trim() && (
+              <Text style={styles.searchResultText}>Search result: {grouped.total}</Text>
+            )}
+
+            {p2pRequests.length > 0 && (
+              <View style={styles.groupCard}>
+                <View style={styles.groupHeader}>
+                  <Text style={styles.groupTitle}>Pending P2P Requests</Text>
+                  <Text style={styles.groupCount}>{p2pRequests.length}</Text>
+                </View>
+                {p2pRequests.map((r) => (
+                  <View key={r.id} style={styles.requestRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.requestTitle}>
+                        {r.from_agent_id || 'Unknown'} → {r.target_agent_id || '-'}
+                      </Text>
+                      <Text style={styles.requestDesc} numberOfLines={1}>
+                        {r.message || 'P2P request'}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.acceptBtn}
+                      onPress={() => handleAcceptRequest(r.id)}
+                    >
+                      <Text style={styles.acceptBtnText}>Accept</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.rejectBtn}
+                      onPress={() => handleRejectRequest(r.id)}
+                    >
+                      <Text style={styles.rejectBtnText}>Reject</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {renderGroup('General Tasks', grouped.generalTasks, 'No general task topics')}
+            {renderGroup('P2P', grouped.p2p, 'No p2p topics')}
+            {renderGroup('Discuss', grouped.discuss, 'No discuss topics')}
+            {renderGroup('Subscriber', grouped.subscriber, 'No subscriber topics')}
+          </ScrollView>
+        </View>
+      </View>
 
       <Modal
         visible={createTaskOpen}
@@ -828,6 +847,73 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
   headerSub: { marginTop: 2, fontSize: 11, color: '#6B7280' },
+  bodyRow: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+  },
+  agentRail: {
+    width: 58,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 6,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  railList: {
+    gap: 8,
+    paddingVertical: 6,
+  },
+  railNewTaskBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  railAgentBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  railAgentBtnSelected: {
+    borderColor: '#2563EB',
+    backgroundColor: '#DBEAFE',
+  },
+  railAgentText: {
+    color: '#374151',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  railAgentTextSelected: {
+    color: '#1D4ED8',
+  },
+  railActionBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+  },
+  mainPane: {
+    flex: 1,
+  },
   wsWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   wsDot: { width: 8, height: 8, borderRadius: 4 },
   wsText: { fontSize: 11, color: '#64748B', textTransform: 'capitalize' },

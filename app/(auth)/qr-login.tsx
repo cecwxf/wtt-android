@@ -14,6 +14,7 @@ import { router } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Constants from 'expo-constants';
 import { useAuthStore } from '@/stores/auth';
+import { useAgentsStore } from '@/stores/agents';
 import { WTTApiClient } from '@/lib/api/wtt-client';
 import { WTT_API_URL } from '@/lib/api/base-url';
 
@@ -55,6 +56,8 @@ export default function QrLoginScreen() {
   const [manualPayload, setManualPayload] = useState('');
   const [scanned, setScanned] = useState(false);
   const setToken = useAuthStore((s) => s.setToken);
+  const fetchAgents = useAgentsStore((s) => s.fetchAgents);
+  const selectAgent = useAgentsStore((s) => s.selectAgent);
 
   const appVersion = useMemo(() => String(Constants.expoConfig?.version || 'unknown'), []);
 
@@ -89,6 +92,20 @@ export default function QrLoginScreen() {
         : undefined;
 
       await setToken(data.access_token, user);
+
+      // Align mobile selected agent with web-selected agent at QR creation time.
+      await fetchAgents(data.access_token);
+      const allAgents = useAgentsStore.getState().agents;
+      if (
+        data.preferred_agent_id &&
+        allAgents.some((a) => a.agent_id === data.preferred_agent_id)
+      ) {
+        await selectAgent(data.preferred_agent_id);
+      } else if (allAgents.length > 0) {
+        // fallback to first available agent when preferred one is unavailable
+        await selectAgent(allAgents[0].agent_id);
+      }
+
       Alert.alert('Success', '扫码登录成功');
       router.replace('/(tabs)');
     } catch (err: unknown) {
