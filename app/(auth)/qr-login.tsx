@@ -8,6 +8,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -63,6 +64,9 @@ export default function QrLoginScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [status, setStatus] = useState<ScanStatus>('scanning');
   const [statusText, setStatusText] = useState('将摄像头对准 WTT Web 上的二维码');
+  const [debugInfo, setDebugInfo] = useState('');
+  const [showManual, setShowManual] = useState(false);
+  const [manualInput, setManualInput] = useState('');
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const processingRef = useRef(false); // ref-based guard against double scan
   const setToken = useAuthStore((s) => s.setToken);
@@ -98,12 +102,10 @@ export default function QrLoginScreen() {
     return () => { if (retryTimer.current) clearTimeout(retryTimer.current); };
   }, []);
 
-  const handleBarcode = useCallback(async (data: string) => {
-    // Double guard: state + ref (ref is synchronous, avoids race between renders)
-    if (status !== 'scanning' || processingRef.current) return;
-    processingRef.current = true;
-
+  const doApprove = useCallback(async (data: string) => {
     const parsed = parseMobileLoginPayload(data);
+    setDebugInfo(`scanned: ${data.slice(0, 60)}…\nparsed: ${parsed ? `sid=${parsed.sid.slice(0, 8)}… nonce=${parsed.nonce.slice(0, 8)}…` : 'null'}\napi: ${WTT_API_URL}`);
+
     if (!parsed) {
       setStatus('error');
       setStatusText('无法识别此二维码');
@@ -150,9 +152,16 @@ export default function QrLoginScreen() {
       if (__DEV__) console.warn('[QR Login]', msg);
       setStatus('error');
       setStatusText(friendlyError(msg));
+      setDebugInfo((prev) => `${prev}\nerror: ${msg}`);
       scheduleRetry();
     }
-  }, [status, appVersion, setToken, hydrateAgents, fetchAgents, scheduleRetry]);
+  }, [appVersion, setToken, hydrateAgents, fetchAgents, scheduleRetry]);
+
+  const handleBarcode = useCallback(async (data: string) => {
+    if (status !== 'scanning' || processingRef.current) return;
+    processingRef.current = true;
+    await doApprove(data);
+  }, [status, doApprove]);
 
   const isActive = status === 'scanning';
 
@@ -240,6 +249,40 @@ export default function QrLoginScreen() {
           <TouchableOpacity style={styles.retryBtn} onPress={resetToScanning}>
             <Text style={styles.retryText}>立即重试</Text>
           </TouchableOpacity>
+        )}
+
+        {/* Debug info — visible so user can report exact error */}
+        {debugInfo ? (
+          <Text style={styles.debugText}>{debugInfo}</Text>
+        ) : null}
+
+        {/* Manual paste fallback */}
+        <TouchableOpacity onPress={() => setShowManual((v) => !v)}>
+          <Text style={styles.manualToggle}>{showManual ? '收起' : '手动输入'}</Text>
+        </TouchableOpacity>
+        {showManual && (
+          <View style={styles.manualRow}>
+            <TextInput
+              style={styles.manualInput}
+              placeholder="粘贴二维码内容 wtt://..."
+              placeholderTextColor="rgba(255,255,255,0.35)"
+              value={manualInput}
+              onChangeText={setManualInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TouchableOpacity
+              style={[styles.manualBtn, !manualInput.trim() && styles.disabledBtn]}
+              disabled={!manualInput.trim()}
+              onPress={() => {
+                processingRef.current = false;
+                setStatus('scanning');
+                void doApprove(manualInput.trim());
+              }}
+            >
+              <Text style={styles.manualBtnText}>提交</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </SafeAreaView>
     </View>
@@ -381,5 +424,52 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  debugText: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 10,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    textAlign: 'left',
+    alignSelf: 'stretch',
+    marginTop: 10,
+    paddingHorizontal: 8,
+    lineHeight: 14,
+  },
+  manualToggle: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+    marginTop: 12,
+    textDecorationLine: 'underline',
+  },
+  manualRow: {
+    flexDirection: 'row',
+    alignSelf: 'stretch',
+    marginTop: 8,
+    gap: 8,
+  },
+  manualInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    color: '#fff',
+    fontSize: 12,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  manualBtn: {
+    backgroundColor: '#6366F1',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+  },
+  manualBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  disabledBtn: {
+    opacity: 0.4,
   },
 });
