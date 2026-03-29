@@ -33,28 +33,47 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
   fetchAgents: async (token: string) => {
     set({ isLoading: true });
     try {
-      const res = await fetch(`${WTT_API_URL}/api/users/me/agents`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const agents = normalizeAndFilterAgents(data);
-        const previousSelected = get().selectedAgentId;
+      const endpoints = [`${WTT_API_URL}/api/agents/my`, `${WTT_API_URL}/api/users/me/agents`];
+      let data: unknown = null;
+      let ok = false;
 
-        set({ agents, isLoading: false });
-
-        if (agents.length === 0) {
-          await deleteSecureItem(SELECTED_AGENT_KEY);
-          set({ selectedAgentId: null });
-          return;
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            data = await res.json();
+            ok = true;
+            break;
+          }
+        } catch {
+          // try next endpoint
         }
+      }
 
-        const stillValid =
-          previousSelected && agents.some((agent) => agent.agent_id === previousSelected);
+      if (!ok) {
+        set({ agents: [], selectedAgentId: null, isLoading: false });
+        await deleteSecureItem(SELECTED_AGENT_KEY);
+        return;
+      }
 
-        if (!stillValid) {
-          await get().selectAgent(agents[0].agent_id);
-        }
+      const agents = normalizeAndFilterAgents(data);
+      const previousSelected = get().selectedAgentId;
+
+      set({ agents, isLoading: false });
+
+      if (agents.length === 0) {
+        await deleteSecureItem(SELECTED_AGENT_KEY);
+        set({ selectedAgentId: null });
+        return;
+      }
+
+      const stillValid =
+        previousSelected && agents.some((agent) => agent.agent_id === previousSelected);
+
+      if (!stillValid) {
+        await get().selectAgent(agents[0].agent_id);
       }
     } catch {
       set({ isLoading: false });
