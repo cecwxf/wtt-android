@@ -50,10 +50,12 @@ function parseMobileLoginPayload(raw: string): { sid: string; nonce: string } | 
 }
 
 function friendlyError(msg: string): string {
-  if (msg.includes('expired') || msg.includes('410')) return '二维码已过期，请在 Web 端刷新后重新扫描';
-  if (msg.includes('nonce') || msg.includes('401')) return '二维码验证失败，请刷新后重试';
-  if (msg.includes('not found') || msg.includes('404')) return '登录会话不存在，请重新生成二维码';
-  if (msg.includes('consumed') || msg.includes('409')) return '此二维码已使用，请生成新的';
+  const m = msg.toLowerCase();
+  if (m.includes('expired') || m.includes('[410]')) return '二维码已过期，请在 Web 端刷新后重新扫描';
+  if (m.includes('nonce') || m.includes('[401]')) return '二维码验证失败，请刷新后重试';
+  if (m.includes('not found') || m.includes('[404]')) return '登录会话不存在，请重新生成二维码';
+  if (m.includes('consumed') || m.includes('[409]')) return '此二维码已使用，请生成新的';
+  if (m.includes('network error')) return '网络连接失败，请检查网络后重试';
   return msg || '扫码登录失败，请重试';
 }
 
@@ -62,6 +64,7 @@ export default function QrLoginScreen() {
   const [status, setStatus] = useState<ScanStatus>('scanning');
   const [statusText, setStatusText] = useState('将摄像头对准 WTT Web 上的二维码');
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const processingRef = useRef(false); // ref-based guard against double scan
   const setToken = useAuthStore((s) => s.setToken);
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
   const hydrateAgents = useAgentsStore((s) => s.hydrateAgents);
@@ -81,6 +84,7 @@ export default function QrLoginScreen() {
   }, [scanAnim]);
 
   const resetToScanning = useCallback(() => {
+    processingRef.current = false;
     setStatus('scanning');
     setStatusText('将摄像头对准 WTT Web 上的二维码');
   }, []);
@@ -95,7 +99,9 @@ export default function QrLoginScreen() {
   }, []);
 
   const handleBarcode = useCallback(async (data: string) => {
-    if (status !== 'scanning') return;
+    // Double guard: state + ref (ref is synchronous, avoids race between renders)
+    if (status !== 'scanning' || processingRef.current) return;
+    processingRef.current = true;
 
     const parsed = parseMobileLoginPayload(data);
     if (!parsed) {
@@ -140,7 +146,8 @@ export default function QrLoginScreen() {
       setStatusText('登录成功');
       setTimeout(() => router.replace('/(tabs)'), 600);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '';
+      const msg = err instanceof Error ? err.message : String(err);
+      if (__DEV__) console.warn('[QR Login]', msg);
       setStatus('error');
       setStatusText(friendlyError(msg));
       scheduleRetry();

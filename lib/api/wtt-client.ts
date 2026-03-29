@@ -57,17 +57,33 @@ export class WTTApiClient {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      ...options,
-      headers: {
-        ...headers,
-        ...(options.headers as Record<string, string>),
-      },
-    });
+    const url = `${this.baseUrl}${endpoint}`;
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers: {
+          ...headers,
+          ...(options.headers as Record<string, string>),
+        },
+      });
+    } catch (fetchErr) {
+      // Network-level failure (DNS, TLS, timeout, no connectivity)
+      const reason = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+      throw new Error(`Network error: ${reason}`);
+    }
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-      throw new Error(error.detail || `HTTP ${response.status}`);
+      let detail: string;
+      try {
+        const body = await response.json();
+        detail = body.detail || JSON.stringify(body);
+      } catch {
+        // Response body is not JSON (e.g., Nginx HTML error page)
+        const text = await response.text().catch(() => '');
+        detail = text.slice(0, 120) || `HTTP ${response.status}`;
+      }
+      throw new Error(`[${response.status}] ${detail}`);
     }
 
     return response.json();
@@ -209,8 +225,15 @@ export class WTTApiClient {
       body: JSON.stringify(data),
     });
     if (!res.ok) {
-      const error = await res.json().catch(() => ({ detail: 'Unknown error' }));
-      throw new Error(error.detail || `HTTP ${res.status}`);
+      let detail: string;
+      try {
+        const body = await res.json();
+        detail = body.detail || JSON.stringify(body);
+      } catch {
+        const text = await res.text().catch(() => '');
+        detail = text.slice(0, 120) || `HTTP ${res.status}`;
+      }
+      throw new Error(`[${res.status}] ${detail}`);
     }
     return res.json();
   }
