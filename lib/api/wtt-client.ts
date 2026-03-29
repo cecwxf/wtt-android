@@ -107,6 +107,27 @@ export class WTTApiClient {
     });
   }
 
+  async approveMobileLoginSession(
+    sessionId: string,
+    nonce: string,
+    options?: { device_name?: string; platform?: string; app_version?: string },
+  ) {
+    return this.request<{
+      ok: boolean;
+      access_token: string;
+      token_type: string;
+      user?: { id?: string; email?: string; name?: string; display_name?: string; avatar?: string };
+    }>(`/auth/mobile-login/session/${encodeURIComponent(sessionId)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({
+        nonce,
+        ...(options?.device_name ? { device_name: options.device_name } : {}),
+        ...(options?.platform ? { platform: options.platform } : {}),
+        ...(options?.app_version ? { app_version: options.app_version } : {}),
+      }),
+    });
+  }
+
   async oauthCallback(
     provider: 'github' | 'google' | 'twitter',
     code: string,

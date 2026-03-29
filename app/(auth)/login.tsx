@@ -191,7 +191,7 @@ export default function LoginScreen() {
 
         {/* Login Button */}
         <TouchableOpacity
-          className="bg-primary rounded-xl py-4 items-center mb-4"
+          className="bg-primary rounded-xl py-4 items-center mb-3"
           style={styles.signInButton}
           onPress={handleLogin}
           disabled={loading || !!oauthLoading}
@@ -204,6 +204,15 @@ export default function LoginScreen() {
               Sign In
             </Text>
           )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.qrLoginButton}
+          onPress={() => router.push('/(auth)/qr-login' as never)}
+          disabled={loading || !!oauthLoading}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.qrLoginText}>Scan QR Login (from WTT Web)</Text>
         </TouchableOpacity>
 
         {/* OAuth Buttons */}
@@ -376,6 +385,20 @@ const styles = StyleSheet.create({
   signInText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  qrLoginButton: {
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    backgroundColor: '#EFF6FF',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  qrLoginText: {
+    color: '#1D4ED8',
+    fontSize: 14,
     fontWeight: '600',
   },
   oauthRow: {
