@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   ActivityIndicator,
   Alert,
   StyleSheet,
@@ -26,12 +27,14 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<OAuthProvider | null>(null);
   const [resendingActivation, setResendingActivation] = useState(false);
+  const [showResend, setShowResend] = useState(params.activation_hint === '1');
   const login = useAuthStore((s) => s.login);
   const loginWithOAuth = useAuthStore((s) => s.loginWithOAuth);
   const resendActivation = useAuthStore((s) => s.resendActivation);
   const githubEnabled = isOAuthProviderEnabled('github');
   const googleEnabled = isOAuthProviderEnabled('google');
   const twitterEnabled = isOAuthProviderEnabled('twitter');
+  const anyOAuth = githubEnabled || googleEnabled || twitterEnabled;
 
   const handleLogin = async () => {
     const normalizedEmail = email.trim().toLowerCase();
@@ -46,9 +49,10 @@ export default function LoginScreen() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed';
       if (message.includes('EMAIL_NOT_VERIFIED')) {
+        setShowResend(true);
         Alert.alert(
           'Email not activated',
-          'Please activate your email first. Need me to resend activation email?',
+          'Please activate your email first. Need to resend?',
           [
             { text: 'Cancel', style: 'cancel' },
             {
@@ -59,7 +63,7 @@ export default function LoginScreen() {
                   const data = await resendActivation(normalizedEmail);
                   Alert.alert('Done', data?.message || 'Activation email sent');
                 } catch (e: unknown) {
-                  const msg = e instanceof Error ? e.message : 'Failed to resend activation email';
+                  const msg = e instanceof Error ? e.message : 'Failed to resend';
                   Alert.alert('Resend failed', msg);
                 } finally {
                   setResendingActivation(false);
@@ -103,199 +107,169 @@ export default function LoginScreen() {
       const data = await resendActivation(normalizedEmail);
       Alert.alert('Done', data?.message || 'Activation email sent');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to resend activation email';
+      const message = err instanceof Error ? err.message : 'Failed to resend';
       Alert.alert('Resend failed', message);
     } finally {
       setResendingActivation(false);
     }
   };
 
+  const busy = loading || !!oauthLoading;
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-background-light dark:bg-background-dark"
       style={styles.root}
     >
-      <View className="flex-1 justify-center px-8" style={styles.inner}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        bounces={false}
+      >
         {/* Logo */}
-        <View className="items-center mb-12" style={styles.logoArea}>
-          <Text className="text-4xl font-inter-bold text-primary" style={styles.title}>
-            WTT
-          </Text>
-          <Text
-            className="text-base text-gray-500 dark:text-gray-400 mt-2 font-inter"
-            style={styles.subtitle}
-          >
-            Want To Talk
-          </Text>
+        <View style={styles.logoArea}>
+          <View style={styles.logoBadge}>
+            <Text style={styles.logoChar}>W</Text>
+          </View>
+          <Text style={styles.appName}>WTT</Text>
+          <Text style={styles.tagline}>Agent Communication Platform</Text>
         </View>
 
-        {/* Email */}
-        <Text
-          className="text-sm font-inter text-gray-600 dark:text-gray-400 mb-1 ml-1"
-          style={styles.label}
-        >
-          Email
-        </Text>
-        <TextInput
-          className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-4 font-inter"
-          style={styles.input}
-          placeholder="you@example.com"
-          placeholderTextColor="#9CA3AF"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
+        {/* Form */}
+        <View style={styles.form}>
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor="#A1A1AA"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="#A1A1AA"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
 
-        {/* Password */}
-        <Text
-          className="text-sm font-inter text-gray-600 dark:text-gray-400 mb-1 ml-1"
-          style={styles.label}
-        >
-          Password
-        </Text>
-        <TextInput
-          className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-2 font-inter"
-          style={styles.passwordInput}
-          placeholder="Password"
-          placeholderTextColor="#9CA3AF"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+          <View style={styles.forgotRow}>
+            <Link href="/(auth)/reset-password" asChild>
+              <TouchableOpacity>
+                <Text style={styles.forgotLink}>Forgot password?</Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
 
-        <View style={styles.forgotRow}>
-          <Link href="/(auth)/reset-password" asChild>
-            <TouchableOpacity>
-              <Text style={styles.forgotLink}>Forgot password?</Text>
+          {/* Resend activation — only when needed */}
+          {showResend && !!email.trim() && (
+            <TouchableOpacity
+              style={styles.resendBtn}
+              onPress={handleResendActivation}
+              disabled={resendingActivation || busy}
+              activeOpacity={0.8}
+            >
+              {resendingActivation ? (
+                <ActivityIndicator color="#6366F1" size="small" />
+              ) : (
+                <Text style={styles.resendText}>Resend activation email</Text>
+              )}
             </TouchableOpacity>
-          </Link>
-        </View>
+          )}
 
-        {(params.activation_hint === '1' || !!email.trim()) && (
+          {/* Sign In */}
           <TouchableOpacity
-            style={styles.resendActivationBtn}
-            onPress={handleResendActivation}
-            disabled={resendingActivation || loading || !!oauthLoading}
-            activeOpacity={0.8}
+            style={[styles.signInBtn, busy && styles.disabled]}
+            onPress={handleLogin}
+            disabled={busy}
+            activeOpacity={0.85}
           >
-            {resendingActivation ? (
-              <ActivityIndicator color="#4F46E5" />
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.resendActivationText}>Resend activation email</Text>
+              <Text style={styles.signInText}>Sign In</Text>
             )}
           </TouchableOpacity>
-        )}
 
-        {/* Login Button */}
-        <TouchableOpacity
-          className="bg-primary rounded-xl py-4 items-center mb-3"
-          style={styles.signInButton}
-          onPress={handleLogin}
-          disabled={loading || !!oauthLoading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text className="text-white text-base font-inter-semibold" style={styles.signInText}>
-              Sign In
-            </Text>
-          )}
-        </TouchableOpacity>
+          {/* QR Login — camera icon style */}
+          <TouchableOpacity
+            style={styles.qrBtn}
+            onPress={() => router.push('/(auth)/qr-login' as never)}
+            disabled={busy}
+            activeOpacity={0.8}
+          >
+            <View style={styles.qrIconBox}>
+              <Text style={styles.qrIcon}>⎔</Text>
+            </View>
+            <Text style={styles.qrText}>Log in by QR Code</Text>
+          </TouchableOpacity>
+        </View>
 
-        <TouchableOpacity
-          style={styles.qrLoginButton}
-          onPress={() => router.push('/(auth)/qr-login' as never)}
-          disabled={loading || !!oauthLoading}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.qrLoginText}>Scan QR Login (from WTT Web)</Text>
-        </TouchableOpacity>
-
-        {/* OAuth Buttons */}
-        {(githubEnabled || googleEnabled || twitterEnabled) && (
-          <>
-            <View className="flex-row gap-3 mb-3" style={styles.oauthRow}>
+        {/* OAuth */}
+        {anyOAuth && (
+          <View style={styles.oauthSection}>
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or sign in with</Text>
+              <View style={styles.dividerLine} />
+            </View>
+            <View style={styles.oauthRow}>
               {githubEnabled && (
                 <TouchableOpacity
-                  className="flex-1 bg-gray-900 dark:bg-zinc-700 rounded-xl py-3 items-center"
-                  style={styles.githubButton}
+                  style={[styles.oauthCircle, { backgroundColor: '#1F2937' }]}
                   onPress={() => handleOAuthLogin('github')}
                   disabled={!!oauthLoading}
-                  activeOpacity={0.8}
                 >
                   {oauthLoading === 'github' ? (
-                    <ActivityIndicator color="#FFFFFF" />
+                    <ActivityIndicator color="#fff" size="small" />
                   ) : (
-                    <Text className="text-white font-inter text-sm" style={styles.oauthText}>
-                      GitHub
-                    </Text>
+                    <Text style={styles.oauthEmoji}>🐙</Text>
                   )}
                 </TouchableOpacity>
               )}
-
               {googleEnabled && (
                 <TouchableOpacity
-                  className="flex-1 bg-red-500 rounded-xl py-3 items-center"
-                  style={styles.googleButton}
+                  style={[styles.oauthCircle, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' }]}
                   onPress={() => handleOAuthLogin('google')}
                   disabled={!!oauthLoading}
-                  activeOpacity={0.8}
                 >
                   {oauthLoading === 'google' ? (
-                    <ActivityIndicator color="#FFFFFF" />
+                    <ActivityIndicator color="#EA4335" size="small" />
                   ) : (
-                    <Text className="text-white font-inter text-sm" style={styles.oauthText}>
-                      Google
-                    </Text>
+                    <Text style={styles.oauthEmojiDark}>G</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+              {twitterEnabled && (
+                <TouchableOpacity
+                  style={[styles.oauthCircle, { backgroundColor: '#1D9BF0' }]}
+                  onPress={() => handleOAuthLogin('twitter')}
+                  disabled={!!oauthLoading}
+                >
+                  {oauthLoading === 'twitter' ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.oauthEmoji}>𝕏</Text>
                   )}
                 </TouchableOpacity>
               )}
             </View>
-
-            {twitterEnabled && (
-              <TouchableOpacity
-                className="bg-sky-500 rounded-xl py-3 items-center mb-6"
-                style={styles.twitterButton}
-                onPress={() => handleOAuthLogin('twitter')}
-                disabled={!!oauthLoading}
-                activeOpacity={0.8}
-              >
-                {oauthLoading === 'twitter' ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <Text className="text-white font-inter text-sm" style={styles.oauthText}>
-                    Twitter
-                  </Text>
-                )}
-              </TouchableOpacity>
-            )}
-          </>
+          </View>
         )}
 
-        {/* Register Link */}
-        <View className="flex-row justify-center" style={styles.registerRow}>
-          <Text
-            className="text-gray-500 dark:text-gray-400 font-inter text-sm"
-            style={styles.registerText}
-          >
-            Don&apos;t have an account?{' '}
-          </Text>
+        {/* Register */}
+        <View style={styles.registerRow}>
+          <Text style={styles.registerText}>Don't have an account? </Text>
           <Link href="/(auth)/register" asChild>
             <TouchableOpacity>
-              <Text
-                className="text-primary font-inter-semibold text-sm"
-                style={styles.registerLink}
-              >
-                Sign Up
-              </Text>
+              <Text style={styles.registerLink}>Sign Up</Text>
             </TouchableOpacity>
           </Link>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -303,145 +277,174 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
   },
-  inner: {
-    flex: 1,
+  scroll: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 32,
+    paddingVertical: 40,
   },
   logoArea: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 36,
   },
-  title: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#6366F1',
+  logoBadge: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
+    backgroundColor: '#6366F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginTop: 8,
+  logoChar: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
-  label: {
+  appName: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 1,
+  },
+  tagline: {
     fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
-    marginLeft: 4,
+    color: '#94A3B8',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  form: {
+    gap: 0,
   },
   input: {
-    backgroundColor: '#fff',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E2E8F0',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     fontSize: 16,
-    color: '#111827',
-    marginBottom: 16,
-  },
-  passwordInput: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#111827',
-    marginBottom: 8,
+    color: '#0F172A',
+    marginBottom: 12,
   },
   forgotRow: {
     alignItems: 'flex-end',
-    marginBottom: 18,
+    marginBottom: 16,
   },
   forgotLink: {
     color: '#6366F1',
     fontSize: 13,
     fontWeight: '600',
   },
-  resendActivationBtn: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    paddingVertical: 10,
+  resendBtn: {
     alignItems: 'center',
-    marginBottom: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
   },
-  resendActivationText: {
-    color: '#4F46E5',
+  resendText: {
+    color: '#6366F1',
     fontSize: 13,
     fontWeight: '600',
   },
-  signInButton: {
+  signInBtn: {
     backgroundColor: '#6366F1',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   signInText: {
-    color: '#fff',
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  qrLoginButton: {
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    backgroundColor: '#EFF6FF',
-    borderRadius: 12,
-    paddingVertical: 12,
+  disabled: {
+    opacity: 0.6,
+  },
+  qrBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingVertical: 13,
+    backgroundColor: '#FAFAFA',
   },
-  qrLoginText: {
-    color: '#1D4ED8',
+  qrIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qrIcon: {
+    fontSize: 16,
+    color: '#6366F1',
+    fontWeight: '700',
+  },
+  qrText: {
+    color: '#334155',
     fontSize: 14,
     fontWeight: '600',
+  },
+  oauthSection: {
+    marginTop: 24,
+    marginBottom: 20,
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E2E8F0',
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    fontSize: 12,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
   oauthRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
+    justifyContent: 'center',
+    gap: 20,
   },
-  githubButton: {
-    flex: 1,
-    backgroundColor: '#111827',
-    borderRadius: 12,
-    paddingVertical: 12,
+  oauthCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  googleButton: {
-    flex: 1,
-    backgroundColor: '#EF4444',
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
+  oauthEmoji: {
+    fontSize: 20,
+    color: '#FFFFFF',
   },
-  twitterButton: {
-    backgroundColor: '#0EA5E9',
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  oauthText: {
-    color: '#fff',
-    fontSize: 14,
+  oauthEmojiDark: {
+    fontSize: 20,
+    color: '#EA4335',
+    fontWeight: '700',
   },
   registerRow: {
     flexDirection: 'row',
     justifyContent: 'center',
+    marginTop: 8,
   },
   registerText: {
-    color: '#6B7280',
+    color: '#94A3B8',
     fontSize: 14,
   },
   registerLink: {
     color: '#6366F1',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

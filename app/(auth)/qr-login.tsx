@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
+  Animated,
+  Dimensions,
   Platform,
+  SafeAreaView,
+  StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -18,6 +19,12 @@ import { useAgentsStore } from '@/stores/agents';
 import { WTTApiClient } from '@/lib/api/wtt-client';
 import { WTT_API_URL } from '@/lib/api/base-url';
 
+const { width: SCREEN_W } = Dimensions.get('window');
+const VIEWFINDER_SIZE = SCREEN_W * 0.65;
+const AUTO_RETRY_MS = 2500;
+
+type ScanStatus = 'scanning' | 'processing' | 'success' | 'error';
+
 function parseMobileLoginPayload(raw: string): { sid: string; nonce: string } | null {
   const text = String(raw || '').trim();
   if (!text) return null;
@@ -25,262 +32,347 @@ function parseMobileLoginPayload(raw: string): { sid: string; nonce: string } | 
   try {
     const json = JSON.parse(text) as { sid?: string; nonce?: string };
     if (json?.sid && json?.nonce) return { sid: String(json.sid), nonce: String(json.nonce) };
-  } catch {
-    // ignore non-json payloads
-  }
+  } catch { /* not JSON */ }
 
   try {
     const url = new URL(text);
     const sid = url.searchParams.get('sid');
     const nonce = url.searchParams.get('nonce');
     if (sid && nonce) return { sid, nonce };
-  } catch {
-    // ignore malformed URL
-  }
+  } catch { /* not a URL */ }
 
   const sidMatch = text.match(/[?&]sid=([^&#]+)/i);
   const nonceMatch = text.match(/[?&]nonce=([^&#]+)/i);
   if (sidMatch?.[1] && nonceMatch?.[1]) {
-    return {
-      sid: decodeURIComponent(sidMatch[1]),
-      nonce: decodeURIComponent(nonceMatch[1]),
-    };
+    return { sid: decodeURIComponent(sidMatch[1]), nonce: decodeURIComponent(nonceMatch[1]) };
   }
-
   return null;
+}
+
+function friendlyError(msg: string): string {
+  if (msg.includes('expired') || msg.includes('410')) return '二维码已过期，请在 Web 端刷新后重新扫描';
+  if (msg.includes('nonce') || msg.includes('401')) return '二维码验证失败，请刷新后重试';
+  if (msg.includes('not found') || msg.includes('404')) return '登录会话不存在，请重新生成二维码';
+  if (msg.includes('consumed') || msg.includes('409')) return '此二维码已使用，请生成新的';
+  return msg || '扫码登录失败，请重试';
 }
 
 export default function QrLoginScreen() {
   const [permission, requestPermission] = useCameraPermissions();
-  const [busy, setBusy] = useState(false);
-  const [manualPayload, setManualPayload] = useState('');
-  const [scanned, setScanned] = useState(false);
+  const [status, setStatus] = useState<ScanStatus>('scanning');
+  const [statusText, setStatusText] = useState('将摄像头对准 WTT Web 上的二维码');
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setToken = useAuthStore((s) => s.setToken);
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
   const hydrateAgents = useAgentsStore((s) => s.hydrateAgents);
-
   const appVersion = useMemo(() => String(Constants.expoConfig?.version || 'unknown'), []);
 
-  const submitPayload = async (payloadText: string) => {
-    const parsed = parseMobileLoginPayload(payloadText);
+  // Animated scan line
+  const scanAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scanAnim, { toValue: 1, duration: 2000, useNativeDriver: true }),
+        Animated.timing(scanAnim, { toValue: 0, duration: 2000, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [scanAnim]);
+
+  const resetToScanning = useCallback(() => {
+    setStatus('scanning');
+    setStatusText('将摄像头对准 WTT Web 上的二维码');
+  }, []);
+
+  const scheduleRetry = useCallback(() => {
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+    retryTimer.current = setTimeout(resetToScanning, AUTO_RETRY_MS);
+  }, [resetToScanning]);
+
+  useEffect(() => {
+    return () => { if (retryTimer.current) clearTimeout(retryTimer.current); };
+  }, []);
+
+  const handleBarcode = useCallback(async (data: string) => {
+    if (status !== 'scanning') return;
+
+    const parsed = parseMobileLoginPayload(data);
     if (!parsed) {
-      Alert.alert('Invalid QR', '无法识别二维码内容，请重新扫码或复制完整链接。');
+      setStatus('error');
+      setStatusText('无法识别此二维码');
+      scheduleRetry();
       return;
     }
 
-    setBusy(true);
+    setStatus('processing');
+    setStatusText('正在验证...');
+
     try {
       const client = new WTTApiClient(WTT_API_URL);
-      const data = await client.approveMobileLoginSession(parsed.sid, parsed.nonce, {
+      const result = await client.approveMobileLoginSession(parsed.sid, parsed.nonce, {
         platform: Platform.OS,
         app_version: appVersion,
         device_name: `${Platform.OS}-mobile`,
       });
 
-      if (!data.access_token) {
-        throw new Error('Missing access token from mobile login session');
-      }
+      if (!result.access_token) throw new Error('Missing access token');
 
-      const user = data.user
+      const user = result.user
         ? {
-            id: data.user.id || '',
-            username: data.user.display_name || data.user.name || data.user.email || 'user',
-            email: data.user.email || '',
-            display_name: data.user.display_name || data.user.name,
-            avatar_url: data.user.avatar,
+            id: result.user.id || '',
+            username: result.user.display_name || result.user.name || result.user.email || 'user',
+            email: result.user.email || '',
+            display_name: result.user.display_name || result.user.name,
+            avatar_url: result.user.avatar,
           }
         : undefined;
 
-      await setToken(data.access_token, user);
+      await setToken(result.access_token, user);
 
-      // Align mobile selected agent with web-selected agent at QR creation time.
-      // Load all claimed agents after QR login; user can switch freely on mobile.
-      if (Array.isArray(data.claimed_agents) && data.claimed_agents.length > 0) {
-        await hydrateAgents(data.claimed_agents);
+      if (Array.isArray(result.claimed_agents) && result.claimed_agents.length > 0) {
+        await hydrateAgents(result.claimed_agents);
       } else {
-        await fetchAgents(data.access_token);
+        await fetchAgents(result.access_token);
       }
 
-      Alert.alert('Success', '扫码登录成功');
-      router.replace('/(tabs)');
+      setStatus('success');
+      setStatusText('登录成功');
+      setTimeout(() => router.replace('/(tabs)'), 600);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '扫码登录失败';
-      Alert.alert('QR Login Failed', message);
-      setScanned(false);
-    } finally {
-      setBusy(false);
+      const msg = err instanceof Error ? err.message : '';
+      setStatus('error');
+      setStatusText(friendlyError(msg));
+      scheduleRetry();
     }
-  };
+  }, [status, appVersion, setToken, hydrateAgents, fetchAgents, scheduleRetry]);
+
+  const isActive = status === 'scanning';
+
+  const scanLineTranslate = scanAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, VIEWFINDER_SIZE - 4],
+  });
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.root}
-    >
-      <View style={styles.inner}>
-        <Text style={styles.title}>Scan QR Login</Text>
-        <Text style={styles.subtitle}>在 WTT Web 登录后，打开“移动端扫码登录”并扫描二维码。</Text>
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" />
 
-        {!permission ? (
-          <View style={styles.centerCard}>
-            <ActivityIndicator color="#2563EB" />
+      {/* Camera fills entire screen */}
+      {permission?.granted ? (
+        <CameraView
+          style={StyleSheet.absoluteFill}
+          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+          onBarcodeScanned={isActive ? ({ data }) => { void handleBarcode(data); } : undefined}
+        />
+      ) : null}
+
+      {/* Dark overlay with transparent viewfinder cutout */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        <View style={styles.overlayFill} />
+        <View style={styles.middleRow}>
+          <View style={styles.overlayFill} />
+          <View style={styles.viewfinder}>
+            <View style={[styles.corner, styles.cornerTL]} />
+            <View style={[styles.corner, styles.cornerTR]} />
+            <View style={[styles.corner, styles.cornerBL]} />
+            <View style={[styles.corner, styles.cornerBR]} />
+            {isActive && (
+              <Animated.View
+                style={[styles.scanLine, { transform: [{ translateY: scanLineTranslate }] }]}
+              />
+            )}
+            {status === 'processing' && (
+              <View style={styles.statusOverlay}>
+                <ActivityIndicator size="large" color="#fff" />
+              </View>
+            )}
+            {status === 'success' && (
+              <View style={styles.statusOverlay}>
+                <Text style={styles.successIcon}>✓</Text>
+              </View>
+            )}
+            {status === 'error' && (
+              <View style={styles.statusOverlay}>
+                <Text style={styles.errorIcon}>!</Text>
+              </View>
+            )}
           </View>
-        ) : !permission.granted ? (
-          <View style={styles.centerCard}>
-            <Text style={styles.helper}>需要相机权限才能扫码登录</Text>
-            <TouchableOpacity style={styles.primaryBtn} onPress={requestPermission}>
-              <Text style={styles.primaryText}>Grant Camera Permission</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.cameraWrap}>
-            <CameraView
-              style={styles.camera}
-              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-              onBarcodeScanned={
-                scanned || busy
-                  ? undefined
-                  : ({ data }) => {
-                      setScanned(true);
-                      void submitPayload(data);
-                    }
-              }
-            />
-          </View>
+          <View style={styles.overlayFill} />
+        </View>
+        <View style={styles.overlayFill} />
+      </View>
+
+      {/* Top bar */}
+      <SafeAreaView style={styles.topBar}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.topTitle}>Scan QR Code</Text>
+        <View style={styles.backBtn} />
+      </SafeAreaView>
+
+      {/* Bottom status */}
+      <SafeAreaView style={styles.bottomArea}>
+        <Text style={[
+          styles.statusLabel,
+          status === 'success' && styles.statusSuccess,
+          status === 'error' && styles.statusError,
+        ]}>
+          {statusText}
+        </Text>
+        <Text style={styles.hint}>在 WTT Web → Settings → Binding 中生成二维码</Text>
+
+        {permission && !permission.granted && (
+          <TouchableOpacity style={styles.permBtn} onPress={requestPermission}>
+            <Text style={styles.permBtnText}>允许使用摄像头</Text>
+          </TouchableOpacity>
         )}
 
-        <Text style={styles.manualLabel}>Or paste QR payload / link</Text>
-        <TextInput
-          style={styles.input}
-          value={manualPayload}
-          onChangeText={setManualPayload}
-          placeholder="wtt://mobile-login?sid=...&nonce=..."
-          placeholderTextColor="#9CA3AF"
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-
-        <View style={styles.row}>
-          <TouchableOpacity
-            style={[styles.secondaryBtn, (busy || !scanned) && styles.disabledBtn]}
-            onPress={() => setScanned(false)}
-            disabled={busy || !scanned}
-          >
-            <Text style={styles.secondaryText}>Scan Again</Text>
+        {status === 'error' && (
+          <TouchableOpacity style={styles.retryBtn} onPress={resetToScanning}>
+            <Text style={styles.retryText}>立即重试</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.primaryBtn, (busy || !manualPayload.trim()) && styles.disabledBtn]}
-            onPress={() => void submitPayload(manualPayload)}
-            disabled={busy || !manualPayload.trim()}
-          >
-            {busy ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.primaryText}>Login</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-    </KeyboardAvoidingView>
+        )}
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#EFEAE2',
+    backgroundColor: '#000',
   },
-  inner: {
+  overlayFill: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 20,
+    backgroundColor: 'rgba(0,0,0,0.55)',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  subtitle: {
-    marginTop: 8,
-    fontSize: 13,
-    color: '#6B7280',
-    lineHeight: 20,
-    marginBottom: 14,
-  },
-  centerCard: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 220,
-  },
-  helper: {
-    color: '#6B7280',
-    marginBottom: 10,
-  },
-  cameraWrap: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: '#fff',
-  },
-  camera: {
-    width: '100%',
-    aspectRatio: 1,
-  },
-  manualLabel: {
-    marginTop: 14,
-    marginBottom: 6,
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: '#111827',
-    fontSize: 13,
-  },
-  row: {
-    marginTop: 12,
+  middleRow: {
     flexDirection: 'row',
-    gap: 8,
+    height: VIEWFINDER_SIZE,
   },
-  primaryBtn: {
-    flex: 1,
-    borderRadius: 12,
-    backgroundColor: '#2563EB',
+  viewfinder: {
+    width: VIEWFINDER_SIZE,
+    height: VIEWFINDER_SIZE,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  corner: {
+    position: 'absolute',
+    width: 28,
+    height: 28,
+    borderColor: '#818CF8',
+    borderWidth: 3,
+  },
+  cornerTL: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 4 },
+  cornerTR: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 4 },
+  cornerBL: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 4 },
+  cornerBR: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 4 },
+  scanLine: {
+    position: 'absolute',
+    left: 8,
+    right: 8,
+    height: 2,
+    backgroundColor: '#818CF8',
+    borderRadius: 1,
+    opacity: 0.8,
+  },
+  statusOverlay: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  primaryText: {
-    color: '#fff',
+  successIcon: {
+    fontSize: 48,
+    color: '#4ADE80',
     fontWeight: '700',
   },
-  secondaryBtn: {
-    flex: 1,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
+  errorIcon: {
+    fontSize: 44,
+    color: '#FB923C',
+    fontWeight: '800',
+    backgroundColor: 'rgba(251,146,60,0.2)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    textAlign: 'center',
+    lineHeight: 56,
+    overflow: 'hidden',
   },
-  secondaryText: {
-    color: '#374151',
+  topBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 32) + 8 : 8,
+    paddingBottom: 12,
+  },
+  backBtn: {
+    width: 70,
+  },
+  backText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
   },
-  disabledBtn: {
-    opacity: 0.6,
+  topTitle: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  bottomArea: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+  },
+  statusLabel: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  statusSuccess: { color: '#4ADE80' },
+  statusError: { color: '#FB923C' },
+  hint: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  permBtn: {
+    backgroundColor: '#6366F1',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    marginTop: 8,
+  },
+  permBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  retryBtn: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+  },
+  retryText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

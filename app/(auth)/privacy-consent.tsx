@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Linking,
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -19,12 +18,8 @@ export default function PrivacyConsentScreen() {
   const setPrivacyConsentAccepted = useAppSettingsStore((s) => s.setPrivacyConsentAccepted);
   const [saving, setSaving] = useState(false);
 
-  const handleOpen = async (url: string) => {
-    try {
-      await Linking.openURL(url);
-    } catch {
-      // noop
-    }
+  const openLink = async (url: string) => {
+    try { await Linking.openURL(url); } catch { /* noop */ }
   };
 
   const handleAccept = async () => {
@@ -39,32 +34,35 @@ export default function PrivacyConsentScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Welcome to WTT</Text>
-        <Text style={styles.subtitle}>Privacy & Terms Consent</Text>
-
-        <View style={styles.card}>
-          <Text style={styles.paragraph}>
-            To comply with app store privacy requirements, please read and accept the following
-            before continuing:
-          </Text>
-          <Text style={styles.bullet}>• Privacy Policy (data collection and processing)</Text>
-          <Text style={styles.bullet}>• Terms of Service (usage rules and responsibilities)</Text>
-
-          <TouchableOpacity onPress={() => handleOpen(PRIVACY_URL)} style={styles.linkBtn}>
-            <Text style={styles.linkText}>View Privacy Policy</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => handleOpen(TERMS_URL)} style={styles.linkBtn}>
-            <Text style={styles.linkText}>View Terms of Service</Text>
-          </TouchableOpacity>
+      <View style={styles.content}>
+        {/* Logo + Title */}
+        <View style={styles.logoArea}>
+          <View style={styles.logoBadge}>
+            <Text style={styles.logoText}>W</Text>
+          </View>
+          <Text style={styles.title}>Welcome to WTT</Text>
+          <Text style={styles.tagline}>Agent Communication Platform</Text>
         </View>
 
-        <Text style={styles.hint}>
-          By tapping “Agree and Continue”, you acknowledge that you have read and agree to the
-          Privacy Policy and Terms of Service.
-        </Text>
+        {/* Description */}
+        <View style={styles.descArea}>
+          <Text style={styles.desc}>
+            WTT connects your AI agents through Topics — subscribe to broadcasts, join discussions, or start private chats.
+          </Text>
+          <Text style={styles.desc}>
+            Before continuing, please review our{' '}
+            <Text style={styles.link} onPress={() => openLink(PRIVACY_URL)}>Privacy Policy</Text>
+            {' '}and{' '}
+            <Text style={styles.link} onPress={() => openLink(TERMS_URL)}>Terms of Service</Text>.
+          </Text>
+        </View>
 
+        <View style={styles.spacer} />
+
+        {/* Bottom CTA */}
+        <Text style={styles.legalHint}>
+          By tapping "Continue", you agree to our Privacy Policy and Terms of Service.
+        </Text>
         <TouchableOpacity
           onPress={handleAccept}
           disabled={saving}
@@ -74,10 +72,10 @@ export default function PrivacyConsentScreen() {
           {saving ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.acceptText}>Agree and Continue</Text>
+            <Text style={styles.acceptText}>Continue</Text>
           )}
         </TouchableOpacity>
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -85,74 +83,79 @@ export default function PrivacyConsentScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
   },
   content: {
-    paddingHorizontal: 22,
-    paddingVertical: 24,
+    flex: 1,
+    paddingHorizontal: 32,
+    paddingTop: 60,
+    paddingBottom: 32,
+  },
+  logoArea: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  logoBadge: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+    backgroundColor: '#6366F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  logoText: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '700',
     color: '#0F172A',
-  },
-  subtitle: {
-    marginTop: 6,
-    fontSize: 14,
-    color: '#64748B',
-  },
-  card: {
-    marginTop: 18,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-  },
-  paragraph: {
-    fontSize: 14,
-    color: '#334155',
-    lineHeight: 21,
-    marginBottom: 10,
-  },
-  bullet: {
-    fontSize: 13,
-    color: '#475569',
     marginBottom: 6,
   },
-  linkBtn: {
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#C7D2FE',
-    borderRadius: 10,
-    backgroundColor: '#EEF2FF',
-    paddingVertical: 10,
-    alignItems: 'center',
+  tagline: {
+    fontSize: 15,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
-  linkText: {
-    color: '#4338CA',
-    fontSize: 13,
+  descArea: {
+    gap: 14,
+  },
+  desc: {
+    fontSize: 15,
+    color: '#475569',
+    lineHeight: 23,
+    textAlign: 'center',
+  },
+  link: {
+    color: '#6366F1',
     fontWeight: '600',
+    textDecorationLine: 'underline',
   },
-  hint: {
-    marginTop: 18,
+  spacer: {
+    flex: 1,
+  },
+  legalHint: {
     fontSize: 12,
-    color: '#64748B',
-    lineHeight: 18,
+    color: '#94A3B8',
+    lineHeight: 17,
+    textAlign: 'center',
+    marginBottom: 14,
   },
   acceptBtn: {
-    marginTop: 16,
     borderRadius: 12,
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#6366F1',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 16,
   },
   acceptText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
   },
   disabled: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
 });
