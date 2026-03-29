@@ -18,6 +18,7 @@ interface AgentsState {
   isLoading: boolean;
 
   fetchAgents: (token: string) => Promise<void>;
+  hydrateAgents: (raw: unknown) => Promise<void>;
   selectAgent: (agentId: string) => Promise<void>;
   loadSelectedAgent: () => Promise<void>;
   claimAgent: (token: string, agentId: string, inviteCode: string) => Promise<void>;
@@ -58,25 +59,26 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
         return;
       }
 
-      const agents = normalizeAndFilterAgents(data);
-      const previousSelected = get().selectedAgentId;
-
-      set({ agents, isLoading: false });
-
-      if (agents.length === 0) {
-        await deleteSecureItem(SELECTED_AGENT_KEY);
-        set({ selectedAgentId: null });
-        return;
-      }
-
-      const stillValid =
-        previousSelected && agents.some((agent) => agent.agent_id === previousSelected);
-
-      if (!stillValid) {
-        await get().selectAgent(agents[0].agent_id);
-      }
+      await get().hydrateAgents(data);
     } catch {
       set({ isLoading: false });
+    }
+  },
+
+  hydrateAgents: async (raw: unknown) => {
+    const agents = normalizeAndFilterAgents(raw);
+    const previousSelected = get().selectedAgentId;
+    set({ agents, isLoading: false });
+
+    if (agents.length === 0) {
+      await deleteSecureItem(SELECTED_AGENT_KEY);
+      set({ selectedAgentId: null });
+      return;
+    }
+
+    const stillValid = previousSelected && agents.some((agent) => agent.agent_id === previousSelected);
+    if (!stillValid) {
+      await get().selectAgent(agents[0].agent_id);
     }
   },
 

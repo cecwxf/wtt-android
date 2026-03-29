@@ -117,6 +117,15 @@ export class WTTApiClient {
       access_token: string;
       token_type: string;
       preferred_agent_id?: string | null;
+      claimed_agents?: Array<{
+        id?: string;
+        agent_id?: string;
+        display_name?: string;
+        is_primary?: boolean;
+        api_key?: string;
+        invite_code?: string;
+        invite_status?: string;
+      }>;
       user?: { id?: string; email?: string; name?: string; display_name?: string; avatar?: string };
     }>(`/auth/mobile-login/session/${encodeURIComponent(sessionId)}/approve`, {
       method: 'POST',
