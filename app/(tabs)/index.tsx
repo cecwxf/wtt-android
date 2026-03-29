@@ -526,7 +526,11 @@ export default function FeedScreen() {
       </View>
 
       <View style={styles.actionRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.actionScroll}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.actionScroll}
+        >
           <TouchableOpacity
             style={styles.actionBtn}
             onPress={() => setCreateP2POpen(true)}

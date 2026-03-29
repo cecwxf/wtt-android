@@ -314,14 +314,14 @@ export default function TasksScreen() {
   return (
     <View style={styles.root}>
       <View style={styles.topBar}>
-        <Text style={styles.topTitle}>General Task Panel</Text>
+        <Text style={styles.topTitle}>Tasks</Text>
         <Text style={styles.topSub}>{generalTasks.length} tasks</Text>
       </View>
 
       <ScrollView
         horizontal
         style={styles.columnsScroll}
-        contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 12 }}
+        contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 12, paddingBottom: 98 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366F1" />
         }
@@ -576,14 +576,17 @@ export default function TasksScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F8FAFC' },
+  root: { flex: 1, backgroundColor: '#EFEAE2' },
   centerWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   centerText: { marginTop: 16, fontSize: 16, color: '#94A3B8' },
 
   topBar: {
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    marginHorizontal: 12,
+    marginTop: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
@@ -592,22 +595,27 @@ const styles = StyleSheet.create({
 
   columnsScroll: { flex: 1 },
   column: {
-    width: 290,
-    marginRight: 12,
+    width: 304,
+    marginRight: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
   },
   columnHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#E5E7EB',
   },
   columnTitle: { fontSize: 13, fontWeight: '700' },
   columnCount: { fontSize: 12, fontWeight: '700' },
@@ -616,8 +624,8 @@ const styles = StyleSheet.create({
   taskCard: {
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
     padding: 10,
     marginBottom: 8,
   },
@@ -646,11 +654,11 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 20,
-    bottom: 24,
+    bottom: 86,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#2563EB',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',

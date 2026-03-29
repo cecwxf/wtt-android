@@ -1,5 +1,6 @@
 import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/stores/auth';
 import { useAgentsStore } from '@/stores/agents';
@@ -94,6 +95,7 @@ export default function ProfileScreen() {
 
   const wsColor =
     wsState === 'connected' ? '#22C55E' : wsState === 'connecting' ? '#EAB308' : '#D1D5DB';
+  const appVersion = String(Constants.expoConfig?.version || '1.0.0');
 
   return (
     <ScrollView className="flex-1 bg-gray-50" style={styles.root}>
@@ -140,7 +142,7 @@ export default function ProfileScreen() {
       {/* Agent Section */}
       <View className="mx-4 mt-4 mb-4" style={styles.section}>
         <Text className="text-sm font-semibold text-gray-500 mb-2 ml-1" style={styles.sectionTitle}>
-          {t.profile.agents.toUpperCase()}
+          {t.profile.agents}
         </Text>
         <View className="bg-white rounded-xl overflow-hidden" style={styles.card}>
           {agents.length === 0 ? (
@@ -210,7 +212,7 @@ export default function ProfileScreen() {
       {/* Settings */}
       <View className="mx-4 mb-4" style={styles.section}>
         <Text className="text-sm font-semibold text-gray-500 mb-2 ml-1" style={styles.sectionTitle}>
-          {t.profile.settings.toUpperCase()}
+          {t.profile.settings}
         </Text>
         <View className="bg-white rounded-xl overflow-hidden" style={styles.card}>
           <TouchableOpacity
@@ -253,7 +255,7 @@ export default function ProfileScreen() {
               About
             </Text>
             <Text className="text-sm text-gray-400" style={styles.settingsValue}>
-              v1.0.0
+              v{appVersion}
             </Text>
             <Ionicons name="chevron-forward" size={16} color="#D1D5DB" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
@@ -263,7 +265,7 @@ export default function ProfileScreen() {
       {/* Notifications */}
       <View className="mx-4 mb-4" style={styles.section}>
         <Text className="text-sm font-semibold text-gray-500 mb-2 ml-1" style={styles.sectionTitle}>
-          NOTIFICATIONS
+          Notifications
         </Text>
         <View className="bg-white rounded-xl overflow-hidden" style={styles.card}>
           <View
@@ -299,7 +301,7 @@ export default function ProfileScreen() {
       {/* Poll / API / Quick actions */}
       <View className="mx-4 mb-4" style={styles.section}>
         <Text className="text-sm font-semibold text-gray-500 mb-2 ml-1" style={styles.sectionTitle}>
-          ADVANCED
+          Advanced
         </Text>
         <View className="bg-white rounded-xl overflow-hidden" style={styles.card}>
           <TouchableOpacity
@@ -362,15 +364,18 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#EFEAE2',
   },
   userInfo: {
     alignItems: 'center',
-    paddingTop: 32,
-    paddingBottom: 24,
+    paddingTop: 26,
+    paddingBottom: 20,
+    marginHorizontal: 12,
+    marginTop: 10,
+    borderRadius: 18,
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   avatarCircle: {
     width: 80,
@@ -412,22 +417,23 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   section: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 16,
+    marginHorizontal: 12,
+    marginTop: 12,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 12,
     fontWeight: '600',
     color: '#6B7280',
-    marginBottom: 8,
-    marginLeft: 4,
-    textTransform: 'uppercase',
+    marginBottom: 7,
+    marginLeft: 6,
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   settingsRow: {
     flexDirection: 'row',
@@ -501,10 +507,12 @@ const styles = StyleSheet.create({
   },
   claimButton: {
     marginTop: 8,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
     paddingVertical: 12,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
   },
   claimText: {
     color: '#4F46E5',
@@ -512,8 +520,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   logoutSection: {
-    marginHorizontal: 16,
-    marginBottom: 32,
+    marginHorizontal: 12,
+    marginBottom: 96,
   },
   logoutButton: {
     backgroundColor: '#FEF2F2',
