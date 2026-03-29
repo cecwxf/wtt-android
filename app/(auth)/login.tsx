@@ -135,7 +135,74 @@ export default function LoginScreen() {
           <Text style={styles.tagline}>Agent Communication Platform</Text>
         </View>
 
-        {/* Form */}
+        {/* OAuth — primary sign-in */}
+        {anyOAuth && (
+          <View style={styles.oauthSection}>
+            <View style={styles.oauthRow}>
+              {githubEnabled && (
+                <TouchableOpacity
+                  style={[styles.oauthCircle, { backgroundColor: '#1F2937' }]}
+                  onPress={() => handleOAuthLogin('github')}
+                  disabled={!!oauthLoading}
+                >
+                  {oauthLoading === 'github' ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.oauthEmoji}>🐙</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+              {googleEnabled && (
+                <TouchableOpacity
+                  style={[styles.oauthCircle, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' }]}
+                  onPress={() => handleOAuthLogin('google')}
+                  disabled={!!oauthLoading}
+                >
+                  {oauthLoading === 'google' ? (
+                    <ActivityIndicator color="#EA4335" size="small" />
+                  ) : (
+                    <Text style={styles.oauthEmojiDark}>G</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+              {twitterEnabled && (
+                <TouchableOpacity
+                  style={[styles.oauthCircle, { backgroundColor: '#1D9BF0' }]}
+                  onPress={() => handleOAuthLogin('twitter')}
+                  disabled={!!oauthLoading}
+                >
+                  {oauthLoading === 'twitter' ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.oauthEmoji}>𝕏</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* QR Login */}
+        <TouchableOpacity
+          style={styles.qrBtn}
+          onPress={() => router.push('/(auth)/qr-login' as never)}
+          disabled={busy}
+          activeOpacity={0.8}
+        >
+          <View style={styles.qrIconBox}>
+            <Text style={styles.qrIcon}>⎔</Text>
+          </View>
+          <Text style={styles.qrText}>Log in by QR Code</Text>
+        </TouchableOpacity>
+
+        {/* Divider */}
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or sign in with email</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* Email / password form */}
         <View style={styles.form}>
           <TextInput
             style={styles.input}
@@ -193,72 +260,7 @@ export default function LoginScreen() {
               <Text style={styles.signInText}>Sign In</Text>
             )}
           </TouchableOpacity>
-
-          {/* QR Login — camera icon style */}
-          <TouchableOpacity
-            style={styles.qrBtn}
-            onPress={() => router.push('/(auth)/qr-login' as never)}
-            disabled={busy}
-            activeOpacity={0.8}
-          >
-            <View style={styles.qrIconBox}>
-              <Text style={styles.qrIcon}>⎔</Text>
-            </View>
-            <Text style={styles.qrText}>Log in by QR Code</Text>
-          </TouchableOpacity>
         </View>
-
-        {/* OAuth */}
-        {anyOAuth && (
-          <View style={styles.oauthSection}>
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or sign in with</Text>
-              <View style={styles.dividerLine} />
-            </View>
-            <View style={styles.oauthRow}>
-              {githubEnabled && (
-                <TouchableOpacity
-                  style={[styles.oauthCircle, { backgroundColor: '#1F2937' }]}
-                  onPress={() => handleOAuthLogin('github')}
-                  disabled={!!oauthLoading}
-                >
-                  {oauthLoading === 'github' ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text style={styles.oauthEmoji}>🐙</Text>
-                  )}
-                </TouchableOpacity>
-              )}
-              {googleEnabled && (
-                <TouchableOpacity
-                  style={[styles.oauthCircle, { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' }]}
-                  onPress={() => handleOAuthLogin('google')}
-                  disabled={!!oauthLoading}
-                >
-                  {oauthLoading === 'google' ? (
-                    <ActivityIndicator color="#EA4335" size="small" />
-                  ) : (
-                    <Text style={styles.oauthEmojiDark}>G</Text>
-                  )}
-                </TouchableOpacity>
-              )}
-              {twitterEnabled && (
-                <TouchableOpacity
-                  style={[styles.oauthCircle, { backgroundColor: '#1D9BF0' }]}
-                  onPress={() => handleOAuthLogin('twitter')}
-                  disabled={!!oauthLoading}
-                >
-                  {oauthLoading === 'twitter' ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text style={styles.oauthEmoji}>𝕏</Text>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        )}
 
         {/* Register */}
         <View style={styles.registerRow}>
@@ -393,8 +395,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   oauthSection: {
-    marginTop: 24,
-    marginBottom: 20,
+    marginBottom: 8,
   },
   dividerRow: {
     flexDirection: 'row',
