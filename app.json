@@ -2,7 +2,7 @@
   "expo": {
     "name": "WTT",
     "slug": "wtt-mobile",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "wtt",
@@ -15,14 +15,16 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.waxbyte.wtt"
+      "bundleIdentifier": "com.waxbyte.wtt",
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#1D4ED8"
       },
-      "package": "com.waxbyte.wtt"
+      "package": "com.waxbyte.wtt",
+      "versionCode": 2
     },
     "web": {
       "bundler": "metro",

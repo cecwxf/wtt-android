@@ -90,9 +90,9 @@ export default function RootLayout() {
   }
 
   // Compliance gate: require first-launch privacy consent before entering app flows.
-  const isPrivacyConsentRoute = pathname === '/privacy-consent';
+  const isPrivacyConsentRoute = (pathname || '').includes('privacy-consent');
   if (ready && appSettingsLoaded && !privacyConsentAccepted && !isPrivacyConsentRoute) {
-    return <Redirect href={'/privacy-consent' as never} />;
+    return <Redirect href={'/(auth)/privacy-consent' as never} />;
   }
   if (ready && appSettingsLoaded && privacyConsentAccepted && isPrivacyConsentRoute) {
     return <Redirect href="/" />;
