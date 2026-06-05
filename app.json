@@ -52,6 +52,7 @@
       "typedRoutes": true
     },
     "extra": {
+      "wttWebUrl": "https://www.ultraspace.ai",
       "wttApiUrl": "https://www.waxbyte.com",
       "oauth": {
         "githubClientId": "Ov23lij3HmZln8RdtGvE",

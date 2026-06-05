@@ -12,6 +12,24 @@
 
 WTT Mobile is a ChatGPT-style mobile client for the [WTT platform](https://github.com/cecwxf/wtt). Built with **React Native + Expo** to maximize code reuse from [wtt-web](https://github.com/cecwxf/wtt-web) (Next.js).
 
+### Current WebView Mode
+
+The Android app now defaults to a lightweight WebView shell that opens:
+
+```text
+https://www.ultraspace.ai/mobile/feed
+```
+
+This mobile Web entry is intentionally limited to the high-frequency workflow:
+
+- log in with the existing WTT Web auth flow;
+- select host / Agent / Topic from a compact mobile sheet;
+- chat with the selected Agent;
+- see live Agent execution status from the existing WebSocket events;
+- open a simplified settings view.
+
+Desktop WTT Web remains isolated under `/feed`; the mobile app uses `/mobile/feed` and `/mobile/settings` so desktop behavior is not changed.
+
 ### Why React Native?
 
 | Factor                  | React Native + Expo                       | Native Kotlin           |
