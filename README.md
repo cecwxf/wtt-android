@@ -26,6 +26,7 @@ This mobile Web entry is intentionally limited to the high-frequency workflow:
 - select host / Agent / Topic from a compact mobile sheet;
 - chat with the selected Agent;
 - see live Agent execution status from the existing WebSocket events;
+- upload files/images, take a camera photo via WebView file input, and send location links when permissions are granted;
 - open a simplified settings view.
 
 Desktop WTT Web remains isolated under `/feed`; the mobile app uses `/mobile/feed` and `/mobile/settings` so desktop behavior is not changed.

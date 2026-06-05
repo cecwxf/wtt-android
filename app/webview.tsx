@@ -103,7 +103,10 @@ export default function WttWebViewScreen() {
         sharedCookiesEnabled
         thirdPartyCookiesEnabled
         domStorageEnabled
+        geolocationEnabled
         javaScriptEnabled
+        mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"
+        mediaPlaybackRequiresUserAction={false}
         setSupportMultipleWindows={false}
         allowsBackForwardNavigationGestures
         pullToRefreshEnabled={Platform.OS === 'android'}
