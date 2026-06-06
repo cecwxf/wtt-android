@@ -1,11 +1,23 @@
 import Constants from 'expo-constants';
+import * as ExpoLinking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  BackHandler,
+  Linking,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { WebView, type WebViewNavigation } from 'react-native-webview';
+import { WebView, type WebViewMessageEvent, type WebViewNavigation } from 'react-native-webview';
 
 const DEFAULT_WEB_URL = 'https://www.ultraspace.ai';
+const ANDROID_RESET_SESSION_MESSAGE = 'WTT_ANDROID_RESET_SESSION';
 
 function normalizeBaseUrl(raw?: string): string {
   const value = String(raw || '').trim() || DEFAULT_WEB_URL;
@@ -27,17 +39,83 @@ function isAuthProviderUrl(url: string): boolean {
   }
 }
 
+function appendMobileParams(
+  baseUrl: string,
+  path: string,
+  params: Record<string, string | undefined>,
+): string {
+  const url = new URL(`${baseUrl}${path}`);
+  url.searchParams.set('source', 'android');
+  for (const [key, value] of Object.entries(params)) {
+    const cleaned = String(value || '').trim();
+    if (cleaned) url.searchParams.set(key, cleaned);
+  }
+  return url.toString();
+}
+
+function mapDeepLinkToWebUrl(rawUrl: string | null, webBaseUrl: string): string | null {
+  if (!rawUrl) return null;
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'wtt:') return null;
+    const parts = [parsed.hostname, ...parsed.pathname.split('/').filter(Boolean)].filter(Boolean);
+    const route = (parts[0] || 'feed').toLowerCase();
+    const subRoute = (parts[1] || '').toLowerCase();
+    const id = parts[1] || parsed.searchParams.get('id') || '';
+    const agentId =
+      parsed.searchParams.get('agent_id') || parsed.searchParams.get('agentId') || undefined;
+
+    if (route === 'mobile' && subRoute === 'settings') {
+      return appendMobileParams(webBaseUrl, '/mobile/settings', {});
+    }
+    if (route === 'mobile' && subRoute === 'feed') {
+      return appendMobileParams(webBaseUrl, '/mobile/feed', {
+        topic_id: parsed.searchParams.get('topic_id') || undefined,
+        task_id: parsed.searchParams.get('task_id') || undefined,
+        agent_id: agentId,
+      });
+    }
+    if (route === 'topic') {
+      return appendMobileParams(webBaseUrl, '/mobile/feed', {
+        topic_id: id || parsed.searchParams.get('topic_id') || undefined,
+        agent_id: agentId,
+      });
+    }
+    if (route === 'task') {
+      return appendMobileParams(webBaseUrl, '/mobile/feed', {
+        task_id: id || parsed.searchParams.get('task_id') || undefined,
+        agent_id: agentId,
+      });
+    }
+    if (route === 'settings') {
+      return appendMobileParams(webBaseUrl, '/mobile/settings', {});
+    }
+    return appendMobileParams(webBaseUrl, '/mobile/feed', {
+      topic_id: parsed.searchParams.get('topic_id') || undefined,
+      task_id: parsed.searchParams.get('task_id') || undefined,
+      agent_id: agentId,
+    });
+  } catch {
+    return null;
+  }
+}
+
 export default function WttWebViewScreen() {
   const webViewRef = useRef<WebView>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   const webBaseUrl = useMemo(
-    () => normalizeBaseUrl(Constants.expoConfig?.extra?.wttWebUrl || Constants.expoConfig?.extra?.wttApiUrl),
+    () =>
+      normalizeBaseUrl(
+        Constants.expoConfig?.extra?.wttWebUrl || Constants.expoConfig?.extra?.wttApiUrl,
+      ),
     [],
   );
   const mobileFeedUrl = `${webBaseUrl}/mobile/feed?source=android`;
+  const [targetUrl, setTargetUrl] = useState(mobileFeedUrl);
   const allowedHost = useMemo(() => {
     try {
       return new URL(webBaseUrl).hostname.toLowerCase();
@@ -57,6 +135,78 @@ export default function WttWebViewScreen() {
     return () => subscription.remove();
   }, [canGoBack]);
 
+  const loadDeepLink = useCallback(
+    (url: string | null) => {
+      const mapped = mapDeepLinkToWebUrl(url, webBaseUrl);
+      if (!mapped) return false;
+      setError('');
+      setLoading(true);
+      setTargetUrl(mapped);
+      setReloadKey((value) => value + 1);
+      return true;
+    },
+    [webBaseUrl],
+  );
+
+  const openExternalUrl = useCallback((url: string) => {
+    if (!url) return;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        void WebBrowser.openBrowserAsync(url);
+        return;
+      }
+    } catch {
+      // Fall through to platform URL handling.
+    }
+    void Linking.openURL(url).catch(() => undefined);
+  }, []);
+
+  const resetWebSession = useCallback(() => {
+    Alert.alert('重新登录 WTT', '将清理 WebView 缓存并回到移动登录页。', [
+      { text: '取消', style: 'cancel' },
+      {
+        text: '继续',
+        style: 'destructive',
+        onPress: () => {
+          webViewRef.current?.injectJavaScript(`
+            try {
+              localStorage.clear();
+              sessionStorage.clear();
+              document.cookie.split(';').forEach(function(cookie) {
+                document.cookie = cookie.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date(0).toUTCString() + ';path=/');
+              });
+            } catch (error) {}
+            true;
+          `);
+          webViewRef.current?.clearCache?.(true);
+          webViewRef.current?.clearHistory?.();
+          setCanGoBack(false);
+          setError('');
+          setLoading(true);
+          setTargetUrl(
+            `${webBaseUrl}/mobile/login?callbackUrl=${encodeURIComponent('/mobile/feed')}&source=android&reset=${Date.now()}`,
+          );
+          setReloadKey((value) => value + 1);
+        },
+      },
+    ]);
+  }, [webBaseUrl]);
+
+  useEffect(() => {
+    let mounted = true;
+    void ExpoLinking.getInitialURL().then((url) => {
+      if (mounted) loadDeepLink(url);
+    });
+    const subscription = ExpoLinking.addEventListener('url', ({ url }) => {
+      loadDeepLink(url);
+    });
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, [loadDeepLink]);
+
   const shouldStartLoad = useCallback(
     (request: WebViewNavigation) => {
       const url = request.url || '';
@@ -64,17 +214,28 @@ export default function WttWebViewScreen() {
       try {
         const parsed = new URL(url);
         const host = parsed.hostname.toLowerCase();
+        if (parsed.protocol === 'wtt:') return !loadDeepLink(url);
         if (host === allowedHost || isAuthProviderUrl(url)) return true;
         if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-          void WebBrowser.openBrowserAsync(url);
+          openExternalUrl(url);
           return false;
         }
+        openExternalUrl(url);
+        return false;
       } catch {
         return true;
       }
-      return true;
     },
-    [allowedHost],
+    [allowedHost, loadDeepLink, openExternalUrl],
+  );
+
+  const handleWebMessage = useCallback(
+    (event: WebViewMessageEvent) => {
+      if (event.nativeEvent.data === ANDROID_RESET_SESSION_MESSAGE) {
+        resetWebSession();
+      }
+    },
+    [resetWebSession],
   );
 
   return (
@@ -88,16 +249,24 @@ export default function WttWebViewScreen() {
             onPress={() => {
               setError('');
               setLoading(true);
-              webViewRef.current?.reload();
+              if (webViewRef.current) {
+                webViewRef.current.reload();
+              } else {
+                setReloadKey((value) => value + 1);
+              }
             }}
           >
             <Text style={styles.retryText}>重新加载</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.resetButton} onPress={resetWebSession}>
+            <Text style={styles.resetText}>清缓存并重新登录</Text>
+          </TouchableOpacity>
         </View>
       ) : null}
       <WebView
+        key={reloadKey}
         ref={webViewRef}
-        source={{ uri: mobileFeedUrl }}
+        source={{ uri: targetUrl }}
         style={styles.webview}
         originWhitelist={['*']}
         sharedCookiesEnabled
@@ -116,14 +285,24 @@ export default function WttWebViewScreen() {
         }}
         onLoadEnd={() => setLoading(false)}
         onError={(event) => setError(event.nativeEvent.description || 'Network error')}
+        onContentProcessDidTerminate={() => {
+          setLoading(true);
+          webViewRef.current?.reload();
+        }}
         onHttpError={(event) => {
           if (event.nativeEvent.statusCode >= 500) {
             setError(`HTTP ${event.nativeEvent.statusCode}`);
           }
         }}
+        onFileDownload={(event) => {
+          openExternalUrl(event.nativeEvent.downloadUrl);
+        }}
+        onMessage={handleWebMessage}
+        downloadingMessage="正在下载 WTT 文件..."
+        lackPermissionToDownloadMessage="无法下载文件，请在系统设置中允许 WTT 访问存储。"
         onNavigationStateChange={(state) => setCanGoBack(state.canGoBack)}
         onShouldStartLoadWithRequest={shouldStartLoad}
-        userAgent="WTT-Android-WebView/1.0"
+        applicationNameForUserAgent="WTT-Android-WebView/1.0"
       />
       {loading && !error ? (
         <View pointerEvents="none" style={styles.loading}>
@@ -190,6 +369,20 @@ const styles = StyleSheet.create({
   },
   retryText: {
     color: '#fff',
+    fontWeight: '800',
+  },
+  resetButton: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  resetText: {
+    color: '#475569',
     fontWeight: '800',
   },
 });
