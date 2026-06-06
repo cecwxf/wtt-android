@@ -11,6 +11,7 @@ import {
   Keyboard,
   Linking,
   Platform,
+  PermissionsAndroid,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -279,6 +280,14 @@ export default function WttWebViewScreen() {
     },
     [],
   );
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    void PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.CAMERA,
+      PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
+    ]).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
