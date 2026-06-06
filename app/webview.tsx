@@ -18,10 +18,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from 'react-native-webview';
+import type { WebViewErrorEvent } from 'react-native-webview/lib/WebViewTypes';
 
 const DEFAULT_WEB_URL = 'https://www.ultraspace.ai';
 const ANDROID_RESET_SESSION_MESSAGE = 'WTT_ANDROID_RESET_SESSION';
 const LOADING_FALLBACK_MS = 12000;
+const MAX_TRANSIENT_WEB_RETRIES = 2;
+const WEB_RETRY_DELAY_MS = 900;
 const PREVENT_INITIAL_AUTOFOCUS_SCRIPT = `
   (function() {
     if (window.__WTT_ANDROID_FOCUS_GUARD__) return true;
@@ -42,6 +45,23 @@ const PREVENT_INITIAL_AUTOFOCUS_SCRIPT = `
   })();
 `;
 type RouteParams = Record<string, string | string[] | undefined>;
+
+function isTransientWebViewError(code: number, description: string): boolean {
+  if (code === -8) return true;
+  return /ERR_CONNECTION_TIMED_OUT|ERR_NETWORK_CHANGED|ERR_INTERNET_DISCONNECTED|timeout/i.test(
+    description,
+  );
+}
+
+function webViewErrorText(code: number, description: string): string {
+  if (code === -8 || /ERR_CONNECTION_TIMED_OUT/i.test(description)) {
+    return '网络连接超时，WTT 已尝试自动重连。请检查当前 Wi-Fi/蜂窝网络后重试。';
+  }
+  if (/ERR_INTERNET_DISCONNECTED/i.test(description)) {
+    return '当前网络不可用，请恢复网络后重试。';
+  }
+  return description || '页面加载失败，请稍后重试。';
+}
 
 function normalizeBaseUrl(raw?: string): string {
   const value = String(raw || '').trim() || DEFAULT_WEB_URL;
@@ -197,6 +217,8 @@ export default function WttWebViewScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const webErrorRetryRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const webBaseUrl = useMemo(
     () =>
@@ -225,6 +247,17 @@ export default function WttWebViewScreen() {
     const timer = setTimeout(() => setLoading(false), LOADING_FALLBACK_MS);
     return () => clearTimeout(timer);
   }, [error, loading, reloadKey, targetUrl]);
+
+  useEffect(() => {
+    webErrorRetryRef.current = 0;
+  }, [targetUrl]);
+
+  useEffect(
+    () => () => {
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -349,31 +382,29 @@ export default function WttWebViewScreen() {
     [resetWebSession],
   );
 
+  const handleWebError = useCallback((event: WebViewErrorEvent) => {
+    const code = Number(event.nativeEvent.code || 0);
+    const description = String(event.nativeEvent.description || '');
+    if (
+      isTransientWebViewError(code, description) &&
+      webErrorRetryRef.current < MAX_TRANSIENT_WEB_RETRIES
+    ) {
+      const retryAttempt = webErrorRetryRef.current + 1;
+      webErrorRetryRef.current = retryAttempt;
+      setError('');
+      setLoading(true);
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = setTimeout(() => {
+        setReloadKey((value) => value + 1);
+      }, WEB_RETRY_DELAY_MS * retryAttempt);
+      return;
+    }
+    setLoading(false);
+    setError(webViewErrorText(code, description));
+  }, []);
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
-      {error ? (
-        <View style={styles.errorCard}>
-          <Text style={styles.errorTitle}>WTT 加载失败</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={() => {
-              setError('');
-              setLoading(true);
-              if (webViewRef.current) {
-                webViewRef.current.reload();
-              } else {
-                setReloadKey((value) => value + 1);
-              }
-            }}
-          >
-            <Text style={styles.retryText}>重新加载</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.resetButton} onPress={resetWebSession}>
-            <Text style={styles.resetText}>清缓存并重新登录</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
       <WebView
         key={reloadKey}
         ref={webViewRef}
@@ -398,11 +429,13 @@ export default function WttWebViewScreen() {
         }}
         onLoadProgress={(event) => {
           if (event.nativeEvent.progress >= 0.8) {
+            webErrorRetryRef.current = 0;
             Keyboard.dismiss();
             setLoading(false);
           }
         }}
         onLoad={() => {
+          webErrorRetryRef.current = 0;
           Keyboard.dismiss();
           setLoading(false);
         }}
@@ -410,10 +443,11 @@ export default function WttWebViewScreen() {
           Keyboard.dismiss();
           setLoading(false);
         }}
-        onError={(event) => setError(event.nativeEvent.description || 'Network error')}
+        onError={handleWebError}
+        renderError={() => <View style={styles.webviewFallback} />}
         onContentProcessDidTerminate={() => {
           setLoading(true);
-          webViewRef.current?.reload();
+          setReloadKey((value) => value + 1);
         }}
         onHttpError={(event) => {
           if (event.nativeEvent.statusCode >= 500) {
@@ -439,6 +473,26 @@ export default function WttWebViewScreen() {
         onShouldStartLoadWithRequest={shouldStartLoad}
         applicationNameForUserAgent="WTT-Android-WebView/1.0"
       />
+      {error ? (
+        <View style={styles.errorCard}>
+          <Text style={styles.errorTitle}>WTT 加载失败</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              webErrorRetryRef.current = 0;
+              setError('');
+              setLoading(true);
+              setReloadKey((value) => value + 1);
+            }}
+          >
+            <Text style={styles.retryText}>重新加载</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.resetButton} onPress={resetWebSession}>
+            <Text style={styles.resetText}>清缓存并重新登录</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
       {loading && !error ? (
         <View pointerEvents="none" style={styles.loadingScreen}>
           <View style={styles.loadingLogo}>
@@ -463,6 +517,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   webview: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  webviewFallback: {
     flex: 1,
     backgroundColor: '#f8fafc',
   },
