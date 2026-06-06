@@ -9,6 +9,9 @@ import '../global.css';
 
 SplashScreen.preventAutoHideAsync();
 
+const SPLASH_MIN_VISIBLE_MS = 900;
+const splashStartedAt = Date.now();
+
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
@@ -20,10 +23,23 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    let cancelled = false;
     if (fontsLoaded || fontError) {
-      setReady(true);
-      SplashScreen.hideAsync();
+      const elapsed = Date.now() - splashStartedAt;
+      const delay = Math.max(SPLASH_MIN_VISIBLE_MS - elapsed, 0);
+      const timer = setTimeout(() => {
+        if (cancelled) return;
+        setReady(true);
+        SplashScreen.hideAsync().catch(() => {});
+      }, delay);
+      return () => {
+        cancelled = true;
+        clearTimeout(timer);
+      };
     }
+    return () => {
+      cancelled = true;
+    };
   }, [fontsLoaded, fontError]);
 
   // Use inline styles for the loading screen to avoid NativeWind dependency
