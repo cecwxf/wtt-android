@@ -8,6 +8,7 @@ import {
   Alert,
   Image,
   BackHandler,
+  Keyboard,
   Linking,
   Platform,
   StyleSheet,
@@ -20,6 +21,26 @@ import { WebView, type WebViewMessageEvent, type WebViewNavigation } from 'react
 
 const DEFAULT_WEB_URL = 'https://www.ultraspace.ai';
 const ANDROID_RESET_SESSION_MESSAGE = 'WTT_ANDROID_RESET_SESSION';
+const LOADING_FALLBACK_MS = 12000;
+const PREVENT_INITIAL_AUTOFOCUS_SCRIPT = `
+  (function() {
+    if (window.__WTT_ANDROID_FOCUS_GUARD__) return true;
+    window.__WTT_ANDROID_FOCUS_GUARD__ = true;
+    var userInteracted = false;
+    var unlock = function() { userInteracted = true; };
+    ['touchstart', 'pointerdown', 'keydown'].forEach(function(eventName) {
+      window.addEventListener(eventName, unlock, { capture: true, once: true });
+    });
+    var originalFocus = HTMLElement.prototype.focus;
+    HTMLElement.prototype.focus = function() {
+      var tagName = String(this && this.tagName || '').toUpperCase();
+      if (!userInteracted && /^(INPUT|TEXTAREA|SELECT)$/.test(tagName)) return;
+      return originalFocus.apply(this, arguments);
+    };
+    window.setTimeout(unlock, 2500);
+    true;
+  })();
+`;
 type RouteParams = Record<string, string | string[] | undefined>;
 
 function normalizeBaseUrl(raw?: string): string {
@@ -200,6 +221,12 @@ export default function WttWebViewScreen() {
   );
 
   useEffect(() => {
+    if (!loading || error) return undefined;
+    const timer = setTimeout(() => setLoading(false), LOADING_FALLBACK_MS);
+    return () => clearTimeout(timer);
+  }, [error, loading, reloadKey, targetUrl]);
+
+  useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       const currentUrl = currentUrlRef.current;
       if (canGoBack && !isMobileLoginUrl(currentUrl)) {
@@ -358,8 +385,10 @@ export default function WttWebViewScreen() {
         domStorageEnabled
         geolocationEnabled
         javaScriptEnabled
+        injectedJavaScriptBeforeContentLoaded={PREVENT_INITIAL_AUTOFOCUS_SCRIPT}
         mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"
         mediaPlaybackRequiresUserAction={false}
+        saveFormDataDisabled
         setSupportMultipleWindows={false}
         allowsBackForwardNavigationGestures
         pullToRefreshEnabled={Platform.OS === 'android'}
@@ -369,11 +398,18 @@ export default function WttWebViewScreen() {
         }}
         onLoadProgress={(event) => {
           if (event.nativeEvent.progress >= 0.8) {
+            Keyboard.dismiss();
             setLoading(false);
           }
         }}
-        onLoad={() => setLoading(false)}
-        onLoadEnd={() => setLoading(false)}
+        onLoad={() => {
+          Keyboard.dismiss();
+          setLoading(false);
+        }}
+        onLoadEnd={() => {
+          Keyboard.dismiss();
+          setLoading(false);
+        }}
         onError={(event) => setError(event.nativeEvent.description || 'Network error')}
         onContentProcessDidTerminate={() => {
           setLoading(true);
