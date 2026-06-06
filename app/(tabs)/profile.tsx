@@ -218,7 +218,7 @@ export default function ProfileScreen() {
           <TouchableOpacity
             className="flex-row items-center px-4 py-3 border-b border-gray-50"
             style={[styles.settingsRow, styles.rowBorder]}
-            onPress={() => router.push('/(auth)/qr-login')}
+            onPress={() => router.push('/(auth)/qr-login' as never)}
             activeOpacity={0.7}
           >
             <Ionicons name="qr-code-outline" size={20} color="#6366F1" />
