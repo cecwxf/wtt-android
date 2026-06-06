@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import * as ExpoLinking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import { useLocalSearchParams, usePathname } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,6 +19,7 @@ import { WebView, type WebViewMessageEvent, type WebViewNavigation } from 'react
 
 const DEFAULT_WEB_URL = 'https://www.ultraspace.ai';
 const ANDROID_RESET_SESSION_MESSAGE = 'WTT_ANDROID_RESET_SESSION';
+type RouteParams = Record<string, string | string[] | undefined>;
 
 function normalizeBaseUrl(raw?: string): string {
   const value = String(raw || '').trim() || DEFAULT_WEB_URL;
@@ -51,6 +53,54 @@ function appendMobileParams(
     if (cleaned) url.searchParams.set(key, cleaned);
   }
   return url.toString();
+}
+
+function routeParam(params: RouteParams, key: string): string | undefined {
+  const value = params[key];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function mapNativePathToWebUrl(
+  pathname: string | null,
+  params: RouteParams,
+  webBaseUrl: string,
+): string | null {
+  const path = String(pathname || '').replace(/^\/+|\/+$/g, '');
+  if (!path || path === 'webview') return null;
+
+  const parts = path.split('/').filter(Boolean);
+  const route = (parts[0] || 'feed').toLowerCase();
+  const subRoute = (parts[1] || '').toLowerCase();
+  const agentId = routeParam(params, 'agent_id') || routeParam(params, 'agentId');
+
+  if (route === 'settings' || (route === 'mobile' && subRoute === 'settings')) {
+    return appendMobileParams(webBaseUrl, '/mobile/settings', {});
+  }
+  if (route === 'topic') {
+    return appendMobileParams(webBaseUrl, '/mobile/feed', {
+      topic_id: parts[1] || routeParam(params, 'id') || routeParam(params, 'topic_id'),
+      agent_id: agentId,
+    });
+  }
+  if (route === 'task') {
+    return appendMobileParams(webBaseUrl, '/mobile/feed', {
+      task_id: parts[1] || routeParam(params, 'id') || routeParam(params, 'task_id'),
+      agent_id: agentId,
+    });
+  }
+  if (route === 'mobile' && subRoute === 'feed') {
+    return appendMobileParams(webBaseUrl, '/mobile/feed', {
+      topic_id: routeParam(params, 'topic_id') || routeParam(params, 'topicId'),
+      task_id: routeParam(params, 'task_id') || routeParam(params, 'taskId'),
+      agent_id: agentId,
+    });
+  }
+
+  return appendMobileParams(webBaseUrl, '/mobile/feed', {
+    topic_id: routeParam(params, 'topic_id') || routeParam(params, 'topicId'),
+    task_id: routeParam(params, 'task_id') || routeParam(params, 'taskId'),
+    agent_id: agentId,
+  });
 }
 
 function mapDeepLinkToWebUrl(rawUrl: string | null, webBaseUrl: string): string | null {
@@ -102,6 +152,8 @@ function mapDeepLinkToWebUrl(rawUrl: string | null, webBaseUrl: string): string 
 
 export default function WttWebViewScreen() {
   const webViewRef = useRef<WebView>(null);
+  const pathname = usePathname();
+  const routeParams = useLocalSearchParams() as RouteParams;
   const [canGoBack, setCanGoBack] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -123,6 +175,10 @@ export default function WttWebViewScreen() {
       return '';
     }
   }, [webBaseUrl]);
+  const nativeRouteUrl = useMemo(
+    () => mapNativePathToWebUrl(pathname, routeParams, webBaseUrl),
+    [pathname, routeParams, webBaseUrl],
+  );
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -206,6 +262,14 @@ export default function WttWebViewScreen() {
       subscription.remove();
     };
   }, [loadDeepLink]);
+
+  useEffect(() => {
+    if (!nativeRouteUrl) return;
+    setError('');
+    setLoading(true);
+    setTargetUrl(nativeRouteUrl);
+    setReloadKey((value) => value + 1);
+  }, [nativeRouteUrl]);
 
   const shouldStartLoad = useCallback(
     (request: WebViewNavigation) => {
