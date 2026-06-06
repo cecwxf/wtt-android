@@ -41,6 +41,23 @@ function isAuthProviderUrl(url: string): boolean {
   }
 }
 
+function isMobileFeedUrl(url: string): boolean {
+  try {
+    return new URL(url).pathname.replace(/\/+$/, '') === '/mobile/feed';
+  } catch {
+    return false;
+  }
+}
+
+function isMobileLoginUrl(url: string): boolean {
+  try {
+    const pathname = new URL(url).pathname.replace(/\/+$/, '');
+    return pathname === '/mobile/login' || pathname === '/login';
+  } catch {
+    return false;
+  }
+}
+
 function appendMobileParams(
   baseUrl: string,
   path: string,
@@ -168,6 +185,7 @@ export default function WttWebViewScreen() {
   );
   const mobileFeedUrl = `${webBaseUrl}/mobile/feed?source=android`;
   const [targetUrl, setTargetUrl] = useState(mobileFeedUrl);
+  const currentUrlRef = useRef(mobileFeedUrl);
   const allowedHost = useMemo(() => {
     try {
       return new URL(webBaseUrl).hostname.toLowerCase();
@@ -182,7 +200,8 @@ export default function WttWebViewScreen() {
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (canGoBack) {
+      const currentUrl = currentUrlRef.current;
+      if (canGoBack && !isMobileLoginUrl(currentUrl)) {
         webViewRef.current?.goBack();
         return true;
       }
@@ -364,7 +383,16 @@ export default function WttWebViewScreen() {
         onMessage={handleWebMessage}
         downloadingMessage="正在下载 WTT 文件..."
         lackPermissionToDownloadMessage="无法下载文件，请在系统设置中允许 WTT 访问存储。"
-        onNavigationStateChange={(state) => setCanGoBack(state.canGoBack)}
+        onNavigationStateChange={(state) => {
+          const previousUrl = currentUrlRef.current;
+          currentUrlRef.current = state.url;
+          if (isMobileFeedUrl(state.url) && isMobileLoginUrl(previousUrl)) {
+            setTimeout(() => webViewRef.current?.clearHistory?.(), 0);
+            setCanGoBack(false);
+            return;
+          }
+          setCanGoBack(state.canGoBack && !isMobileLoginUrl(state.url));
+        }}
         onShouldStartLoadWithRequest={shouldStartLoad}
         applicationNameForUserAgent="WTT-Android-WebView/1.0"
       />
