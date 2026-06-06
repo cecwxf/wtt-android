@@ -122,6 +122,17 @@ function mobileUrlForAllowedHostNavigation(url: string, webBaseUrl: string): str
   }
 }
 
+function isWttMediaUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname.toLowerCase();
+    if (pathname.startsWith('/api/wtt/media/') || pathname.startsWith('/media/')) return true;
+    return /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|#|$)/i.test(`${pathname}${parsed.search}`);
+  } catch {
+    return false;
+  }
+}
+
 function appendMobileParams(
   baseUrl: string,
   path: string,
@@ -390,6 +401,7 @@ export default function WttWebViewScreen() {
         const host = parsed.hostname.toLowerCase();
         if (parsed.protocol === 'wtt:') return !loadDeepLink(url);
         if (host === allowedHost) {
+          if (isWttMediaUrl(url)) return true;
           const mobileUrl = mobileUrlForAllowedHostNavigation(url, webBaseUrl);
           if (!mobileUrl || mobileUrl === url) return true;
           setError('');
@@ -510,7 +522,7 @@ export default function WttWebViewScreen() {
           setCanGoBack(state.canGoBack && !isMobileLoginUrl(state.url));
         }}
         onShouldStartLoadWithRequest={shouldStartLoad}
-        applicationNameForUserAgent="WTT-Android-WebView/1.0"
+        applicationNameForUserAgent="WTT-Android-WebView/1.0.8"
       />
       {error ? (
         <View style={styles.errorCard}>
