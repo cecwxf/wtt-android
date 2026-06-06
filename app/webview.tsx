@@ -100,6 +100,27 @@ function isMobileLoginUrl(url: string): boolean {
   }
 }
 
+function mobileUrlForAllowedHostNavigation(url: string, webBaseUrl: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname.replace(/\/+$/, '') || '/';
+    if (
+      pathname === '/mobile/feed' ||
+      pathname === '/mobile/settings' ||
+      pathname === '/mobile/login' ||
+      pathname === '/login' ||
+      pathname === '/upgrade' ||
+      pathname.startsWith('/api/auth')
+    ) {
+      if (pathname === '/upgrade') parsed.searchParams.set('source', 'android');
+      return parsed.toString();
+    }
+    return appendMobileParams(webBaseUrl, '/mobile/feed', {});
+  } catch {
+    return appendMobileParams(webBaseUrl, '/mobile/feed', {});
+  }
+}
+
 function appendMobileParams(
   baseUrl: string,
   path: string,
@@ -359,7 +380,16 @@ export default function WttWebViewScreen() {
         const parsed = new URL(url);
         const host = parsed.hostname.toLowerCase();
         if (parsed.protocol === 'wtt:') return !loadDeepLink(url);
-        if (host === allowedHost || isAuthProviderUrl(url)) return true;
+        if (host === allowedHost) {
+          const mobileUrl = mobileUrlForAllowedHostNavigation(url, webBaseUrl);
+          if (!mobileUrl || mobileUrl === url) return true;
+          setError('');
+          setLoading(true);
+          setTargetUrl(mobileUrl);
+          setReloadKey((value) => value + 1);
+          return false;
+        }
+        if (isAuthProviderUrl(url)) return true;
         if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
           openExternalUrl(url);
           return false;
@@ -370,7 +400,7 @@ export default function WttWebViewScreen() {
         return true;
       }
     },
-    [allowedHost, loadDeepLink, openExternalUrl],
+    [allowedHost, loadDeepLink, openExternalUrl, webBaseUrl],
   );
 
   const handleWebMessage = useCallback(

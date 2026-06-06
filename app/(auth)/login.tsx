@@ -45,7 +45,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(normalizedEmail, password);
-      router.replace('/(tabs)');
+      router.replace('/webview');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed';
       if (message.includes('EMAIL_NOT_VERIFIED')) {
@@ -85,7 +85,7 @@ export default function LoginScreen() {
     try {
       const oauth = await startOAuthCodeFlow(provider);
       await loginWithOAuth(provider, oauth);
-      router.replace('/(tabs)');
+      router.replace('/webview');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'OAuth login failed';
       if (message !== 'OAuth cancelled') {

@@ -146,7 +146,7 @@ export default function QrLoginScreen() {
 
       setStatus('success');
       setStatusText('登录成功');
-      setTimeout(() => router.replace('/(tabs)'), 600);
+      setTimeout(() => router.replace('/webview'), 600);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       if (__DEV__) console.warn('[QR Login]', msg);
