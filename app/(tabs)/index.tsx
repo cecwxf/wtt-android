@@ -17,6 +17,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useAgentsStore } from '@/stores/agents';
 import { useWebSocketStore } from '@/stores/websocket';
 import { WTT_API_URL } from '@/lib/api/base-url';
+import { shouldHideFeedTopic } from '@/lib/feed-topic-filter';
 import { formatTimeAgo } from '@/lib/time';
 
 type TopicType = 'broadcast' | 'discussion' | 'p2p' | 'collaborative';
@@ -145,6 +146,7 @@ export default function FeedScreen() {
 
             const list = listRaw
               .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object')
+              .filter((x) => !shouldHideFeedTopic(x))
               .map((x) => {
                 const id = String(x.id || '');
                 return {
@@ -180,7 +182,8 @@ export default function FeedScreen() {
 
         if (topicRes.ok) {
           const data = await topicRes.json();
-          const list = (Array.isArray(data) ? data : data.topics || []) as FeedTopic[];
+          const list = ((Array.isArray(data) ? data : data.topics || []) as FeedTopic[])
+            .filter((topic) => !shouldHideFeedTopic(topic as unknown as Record<string, unknown>));
           list.sort((a, b) => new Date(topicTime(b)).getTime() - new Date(topicTime(a)).getTime());
           setTopics(list);
         }
