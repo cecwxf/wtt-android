@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
+  Image,
   Linking,
+  Platform,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -19,49 +22,70 @@ export default function PrivacyConsentScreen() {
   const [saving, setSaving] = useState(false);
 
   const openLink = async (url: string) => {
-    try { await Linking.openURL(url); } catch { /* noop */ }
+    try {
+      await Linking.openURL(url);
+    } catch {
+      /* noop */
+    }
   };
 
   const handleAccept = async () => {
     setSaving(true);
     try {
       await setPrivacyConsentAccepted(true);
-      router.replace('/');
+      router.replace('/webview');
     } finally {
       setSaving(false);
     }
   };
 
+  const handleReject = () => {
+    if (Platform.OS === 'android') {
+      BackHandler.exitApp();
+      return;
+    }
+    router.replace('/');
+  };
+
   return (
     <SafeAreaView style={styles.root}>
       <View style={styles.content}>
-        {/* Logo + Title */}
         <View style={styles.logoArea}>
           <View style={styles.logoBadge}>
-            <Text style={styles.logoText}>W</Text>
+            <Image
+              source={require('../../assets/images/icon.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
-          <Text style={styles.title}>Welcome to WTT</Text>
-          <Text style={styles.tagline}>Agent Communication Platform</Text>
+          <Text style={styles.title}>WTT</Text>
+          <Text style={styles.tagline}>Link the agent world</Text>
         </View>
 
-        {/* Description */}
         <View style={styles.descArea}>
           <Text style={styles.desc}>
-            WTT connects your AI agents through Topics — subscribe to broadcasts, join discussions, or start private chats.
+            欢迎使用 WTT。继续使用前，请先阅读并同意我们的隐私政策和用户协议。
           </Text>
           <Text style={styles.desc}>
-            Before continuing, please review our{' '}
-            <Text style={styles.link} onPress={() => openLink(PRIVACY_URL)}>Privacy Policy</Text>
-            {' '}and{' '}
-            <Text style={styles.link} onPress={() => openLink(TERMS_URL)}>Terms of Service</Text>.
+            我们会按照业务功能所必需的范围处理账号、设备、消息、文件和网络连接相关信息。相机、相册、定位等权限仅会在你主动使用对应功能时申请。
+          </Text>
+          <Text style={styles.desc}>
+            你可以点击查看
+            <Text style={styles.link} onPress={() => openLink(PRIVACY_URL)}>
+              《隐私政策》
+            </Text>
+            和
+            <Text style={styles.link} onPress={() => openLink(TERMS_URL)}>
+              《用户协议》
+            </Text>
+            。
           </Text>
         </View>
 
         <View style={styles.spacer} />
 
-        {/* Bottom CTA */}
         <Text style={styles.legalHint}>
-          By tapping "Continue", you agree to our Privacy Policy and Terms of Service.
+          未经同意，WTT 不会进入登录/Feed 页面，也不会主动申请系统权限。
         </Text>
         <TouchableOpacity
           onPress={handleAccept}
@@ -72,8 +96,16 @@ export default function PrivacyConsentScreen() {
           {saving ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.acceptText}>Continue</Text>
+            <Text style={styles.acceptText}>同意并继续</Text>
           )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleReject}
+          disabled={saving}
+          activeOpacity={0.75}
+          style={styles.rejectBtn}
+        >
+          <Text style={styles.rejectText}>不同意</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -83,55 +115,59 @@ export default function PrivacyConsentScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#f8fafc',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 32,
-    paddingTop: 60,
+    paddingHorizontal: 28,
+    paddingTop: 56,
     paddingBottom: 32,
   },
   logoArea: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 34,
   },
   logoBadge: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: '#6366F1',
+    width: 84,
+    height: 84,
+    borderRadius: 22,
+    backgroundColor: '#1d4ed8',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 18,
+    overflow: 'hidden',
   },
-  logoText: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: '#FFFFFF',
+  logoImage: {
+    width: 84,
+    height: 84,
   },
   title: {
-    fontSize: 26,
-    fontWeight: '700',
+    fontSize: 30,
+    fontWeight: '800',
     color: '#0F172A',
     marginBottom: 6,
   },
   tagline: {
     fontSize: 15,
-    color: '#94A3B8',
-    fontWeight: '500',
+    color: '#475569',
+    fontWeight: '600',
   },
   descArea: {
-    gap: 14,
+    gap: 12,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 18,
   },
   desc: {
     fontSize: 15,
-    color: '#475569',
-    lineHeight: 23,
-    textAlign: 'center',
+    color: '#334155',
+    lineHeight: 24,
   },
   link: {
-    color: '#6366F1',
-    fontWeight: '600',
+    color: '#1d4ed8',
+    fontWeight: '800',
     textDecorationLine: 'underline',
   },
   spacer: {
@@ -139,14 +175,14 @@ const styles = StyleSheet.create({
   },
   legalHint: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: '#64748b',
     lineHeight: 17,
     textAlign: 'center',
     marginBottom: 14,
   },
   acceptBtn: {
-    borderRadius: 12,
-    backgroundColor: '#6366F1',
+    borderRadius: 8,
+    backgroundColor: '#1d4ed8',
     alignItems: 'center',
     paddingVertical: 16,
   },
@@ -157,5 +193,19 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.6,
+  },
+  rejectBtn: {
+    marginTop: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  rejectText: {
+    color: '#475569',
+    fontSize: 15,
+    fontWeight: '800',
   },
 });

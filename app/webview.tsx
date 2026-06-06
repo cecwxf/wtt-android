@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   BackHandler,
   Linking,
   Platform,
@@ -366,6 +367,12 @@ export default function WttWebViewScreen() {
           setLoading(true);
           setError('');
         }}
+        onLoadProgress={(event) => {
+          if (event.nativeEvent.progress >= 0.8) {
+            setLoading(false);
+          }
+        }}
+        onLoad={() => setLoading(false)}
         onLoadEnd={() => setLoading(false)}
         onError={(event) => setError(event.nativeEvent.description || 'Network error')}
         onContentProcessDidTerminate={() => {
@@ -397,8 +404,17 @@ export default function WttWebViewScreen() {
         applicationNameForUserAgent="WTT-Android-WebView/1.0"
       />
       {loading && !error ? (
-        <View pointerEvents="none" style={styles.loading}>
-          <ActivityIndicator color="#0284c7" />
+        <View pointerEvents="none" style={styles.loadingScreen}>
+          <View style={styles.loadingLogo}>
+            <Image
+              source={require('../assets/images/icon.png')}
+              style={styles.loadingLogoImage}
+              resizeMode="contain"
+            />
+          </View>
+          <Text style={styles.loadingTitle}>WTT</Text>
+          <Text style={styles.loadingTagline}>Link the agent world</Text>
+          <ActivityIndicator style={styles.loadingSpinner} color="#2563eb" />
         </View>
       ) : null}
     </SafeAreaView>
@@ -408,24 +424,50 @@ export default function WttWebViewScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#f8f3ea',
+    backgroundColor: '#f8fafc',
   },
   webview: {
     flex: 1,
-    backgroundColor: '#f8f3ea',
+    backgroundColor: '#f8fafc',
   },
-  loading: {
+  loadingScreen: {
     position: 'absolute',
-    top: 12,
-    alignSelf: 'center',
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 4,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 28,
+  },
+  loadingLogo: {
+    width: 84,
+    height: 84,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    backgroundColor: '#1d4ed8',
+  },
+  loadingLogoImage: {
+    width: 84,
+    height: 84,
+  },
+  loadingTitle: {
+    marginTop: 18,
+    color: '#0f172a',
+    fontSize: 30,
+    fontWeight: '800',
+  },
+  loadingTagline: {
+    marginTop: 8,
+    color: '#475569',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  loadingSpinner: {
+    marginTop: 22,
   },
   errorCard: {
     position: 'absolute',
