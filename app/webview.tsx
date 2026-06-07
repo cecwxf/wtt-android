@@ -18,7 +18,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { WebView, type WebViewMessageEvent, type WebViewNavigation } from 'react-native-webview';
+import {
+  WebView,
+  type WebViewMessageEvent,
+  type WebViewNavigation,
+} from 'react-native-webview';
 import type { WebViewErrorEvent } from 'react-native-webview/lib/WebViewTypes';
 
 const DEFAULT_WEB_URL = 'https://www.ultraspace.ai';
@@ -46,6 +50,7 @@ const PREVENT_INITIAL_AUTOFOCUS_SCRIPT = `
   })();
 `;
 type RouteParams = Record<string, string | string[] | undefined>;
+type TopFrameNavigation = WebViewNavigation & { isTopFrame?: boolean };
 
 function isTransientWebViewError(code: number, description: string): boolean {
   if (code === -8) return true;
@@ -122,15 +127,28 @@ function mobileUrlForAllowedHostNavigation(url: string, webBaseUrl: string): str
   }
 }
 
-function isWttMediaUrl(url: string): boolean {
+function isWttAttachmentUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
     const pathname = parsed.pathname.toLowerCase();
-    if (pathname.startsWith('/api/wtt/media/') || pathname.startsWith('/media/')) return true;
-    return /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|#|$)/i.test(`${pathname}${parsed.search}`);
+    if (
+      pathname.startsWith('/api/wtt/media/') ||
+      pathname.startsWith('/media/') ||
+      pathname.startsWith('/api/wtt/artifacts/') ||
+      pathname.startsWith('/artifacts/')
+    ) {
+      return true;
+    }
+    return /\.(jpg|jpeg|png|gif|webp|bmp|svg|pdf|docx?|pptx?|xlsx?|csv|zip|tar|gz|md|txt|html?)(\?|#|$)/i.test(
+      `${pathname}${parsed.search}`,
+    );
   } catch {
     return false;
   }
+}
+
+function isTopFrameNavigation(request: TopFrameNavigation): boolean {
+  return request.isTopFrame !== false;
 }
 
 function appendMobileParams(
@@ -393,7 +411,7 @@ export default function WttWebViewScreen() {
   }, [nativeRouteUrl]);
 
   const shouldStartLoad = useCallback(
-    (request: WebViewNavigation) => {
+    (request: TopFrameNavigation) => {
       const url = request.url || '';
       if (!url || url.startsWith('about:') || url.startsWith('data:')) return true;
       try {
@@ -401,7 +419,12 @@ export default function WttWebViewScreen() {
         const host = parsed.hostname.toLowerCase();
         if (parsed.protocol === 'wtt:') return !loadDeepLink(url);
         if (host === allowedHost) {
-          if (isWttMediaUrl(url)) return true;
+          if (isWttAttachmentUrl(url)) {
+            if (!isTopFrameNavigation(request)) return true;
+            setLoading(false);
+            openExternalUrl(url);
+            return false;
+          }
           const mobileUrl = mobileUrlForAllowedHostNavigation(url, webBaseUrl);
           if (!mobileUrl || mobileUrl === url) return true;
           setError('');
@@ -522,7 +545,7 @@ export default function WttWebViewScreen() {
           setCanGoBack(state.canGoBack && !isMobileLoginUrl(state.url));
         }}
         onShouldStartLoadWithRequest={shouldStartLoad}
-        applicationNameForUserAgent="WTT-Android-WebView/1.0.8"
+        applicationNameForUserAgent="WTT-Android-WebView/1.2.0"
       />
       {error ? (
         <View style={styles.errorCard}>
