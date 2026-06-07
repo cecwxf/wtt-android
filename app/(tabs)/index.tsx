@@ -61,6 +61,25 @@ function isGeneralTaskTopic(t: FeedTopic): boolean {
   return GENERAL_TASK_TYPES.has(raw);
 }
 
+function isUserGroupTopic(t: FeedTopic): boolean {
+  if (t.task_id) return false;
+  const kind = topicKind(t);
+  return kind === 'discussion' || kind === 'collaborative';
+}
+
+function normalizeTopicList(raw: unknown): FeedTopic[] {
+  const list = Array.isArray(raw) ? raw : (raw as { topics?: unknown[] } | null)?.topics || [];
+  return (list as FeedTopic[])
+    .filter((topic) => topic?.id)
+    .filter((topic) => !shouldHideFeedTopic(topic as unknown as Record<string, unknown>));
+}
+
+function sortTopicsByActivity(list: FeedTopic[]): FeedTopic[] {
+  return [...list].sort(
+    (a, b) => new Date(topicTime(b)).getTime() - new Date(topicTime(a)).getTime(),
+  );
+}
+
 export default function FeedScreen() {
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
@@ -76,6 +95,7 @@ export default function FeedScreen() {
   const sendWsAction = useWebSocketStore((s) => s.sendAction);
 
   const [topics, setTopics] = useState<FeedTopic[]>([]);
+  const [groupTopics, setGroupTopics] = useState<FeedTopic[]>([]);
   const [p2pRequests, setP2pRequests] = useState<P2PRequestItem[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -111,7 +131,7 @@ export default function FeedScreen() {
     wsState === 'connected' ? '#22C55E' : wsState === 'connecting' ? '#EAB308' : '#D1D5DB';
 
   const fetchFeedData = useCallback(async () => {
-    if (!token || !selectedAgentId) {
+    if (!token) {
       setLoading(false);
       return;
     }
@@ -119,7 +139,7 @@ export default function FeedScreen() {
     try {
       let fetchedTopics = false;
 
-      if (wsState === 'connected') {
+      if (selectedAgentId && wsState === 'connected') {
         try {
           const wsSubscribed = await sendWsAction<unknown>('subscribed');
           if (wsSubscribed !== null) {
@@ -163,10 +183,7 @@ export default function FeedScreen() {
               })
               .filter((x) => !!x.id);
 
-            list.sort(
-              (a, b) => new Date(topicTime(b)).getTime() - new Date(topicTime(a)).getTime(),
-            );
-            setTopics(list);
+            setTopics(sortTopicsByActivity(list));
             fetchedTopics = true;
           }
         } catch {
@@ -174,7 +191,7 @@ export default function FeedScreen() {
         }
       }
 
-      if (!fetchedTopics) {
+      if (selectedAgentId && !fetchedTopics) {
         const topicRes = await fetch(
           `${WTT_API_URL}/api/topics/subscribed?agent_id=${encodeURIComponent(selectedAgentId)}`,
           { headers: { Authorization: `Bearer ${token}` } },
@@ -182,11 +199,22 @@ export default function FeedScreen() {
 
         if (topicRes.ok) {
           const data = await topicRes.json();
-          const list = ((Array.isArray(data) ? data : data.topics || []) as FeedTopic[])
-            .filter((topic) => !shouldHideFeedTopic(topic as unknown as Record<string, unknown>));
-          list.sort((a, b) => new Date(topicTime(b)).getTime() - new Date(topicTime(a)).getTime());
-          setTopics(list);
+          setTopics(sortTopicsByActivity(normalizeTopicList(data)));
         }
+      } else if (!selectedAgentId) {
+        setTopics([]);
+      }
+
+      try {
+        const groupRes = await fetch(`${WTT_API_URL}/api/topics/my-groups`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (groupRes.ok) {
+          const data = await groupRes.json();
+          setGroupTopics(sortTopicsByActivity(normalizeTopicList(data).filter(isUserGroupTopic)));
+        }
+      } catch {
+        // Preserve the previous group/team list on transient network failures.
       }
 
       const userId = user?.id ? String(user.id) : '';
@@ -237,24 +265,34 @@ export default function FeedScreen() {
 
   const grouped = useMemo(() => {
     const q = topicSearch.trim().toLowerCase();
-    const filtered = !q
+    const filteredTopics = !q
       ? topics
       : topics.filter((t) => {
           const hay =
             `${t.name || ''} ${t.description || ''} ${t.id || ''} ${t.task_id || ''}`.toLowerCase();
           return hay.includes(q);
         });
+    const filteredGroups = !q
+      ? groupTopics
+      : groupTopics.filter((t) => {
+          const hay =
+            `${t.name || ''} ${t.description || ''} ${t.id || ''}`.toLowerCase();
+          return hay.includes(q);
+        });
 
-    const generalTasks = filtered.filter((t) => isGeneralTaskTopic(t));
-    const p2p = filtered.filter((t) => topicKind(t) === 'p2p' && !t.task_id);
-    const discuss = filtered.filter((t) => {
-      const type = topicKind(t);
-      return !t.task_id && (type === 'discussion' || type === 'collaborative');
-    });
-    const subscriber = filtered.filter((t) => !t.task_id && topicKind(t) === 'broadcast');
+    const generalTasks = filteredTopics.filter((t) => isGeneralTaskTopic(t));
+    const p2p = filteredTopics.filter((t) => topicKind(t) === 'p2p' && !t.task_id);
+    const discuss = filteredGroups.filter(isUserGroupTopic);
+    const subscriber = filteredTopics.filter((t) => !t.task_id && topicKind(t) === 'broadcast');
 
-    return { generalTasks, p2p, discuss, subscriber, total: filtered.length };
-  }, [topics, topicSearch]);
+    return {
+      generalTasks,
+      p2p,
+      discuss,
+      subscriber,
+      total: generalTasks.length + p2p.length + discuss.length + subscriber.length,
+    };
+  }, [groupTopics, topics, topicSearch]);
 
   const openTopic = (topic: FeedTopic) => {
     router.push({
@@ -643,7 +681,7 @@ export default function FeedScreen() {
 
             {renderGroup('General Tasks', grouped.generalTasks, 'No general task topics')}
             {renderGroup('P2P', grouped.p2p, 'No p2p topics')}
-            {renderGroup('Discuss', grouped.discuss, 'No discuss topics')}
+            {renderGroup('群聊 / 团队', grouped.discuss, '暂无群聊/团队')}
             {renderGroup('Subscriber', grouped.subscriber, 'No subscriber topics')}
           </ScrollView>
         </View>

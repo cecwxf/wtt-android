@@ -27,6 +27,7 @@ import type { WebViewErrorEvent } from 'react-native-webview/lib/WebViewTypes';
 
 const DEFAULT_WEB_URL = 'https://www.ultraspace.ai';
 const ANDROID_RESET_SESSION_MESSAGE = 'WTT_ANDROID_RESET_SESSION';
+const ANDROID_DOWNLOAD_MESSAGE = 'WTT_ANDROID_DOWNLOAD';
 const LOADING_FALLBACK_MS = 12000;
 const MAX_TRANSIENT_WEB_RETRIES = 2;
 const WEB_RETRY_DELAY_MS = 900;
@@ -35,19 +36,75 @@ const PREVENT_INITIAL_AUTOFOCUS_SCRIPT = `
     if (window.__WTT_ANDROID_FOCUS_GUARD__) return true;
     window.__WTT_ANDROID_FOCUS_GUARD__ = true;
     window.__WTT_ANDROID_DOWNLOAD__ = function(url) {
+      var postDownload = function(payload) {
+        try {
+          window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(Object.assign({
+            type: ${JSON.stringify(ANDROID_DOWNLOAD_MESSAGE)}
+          }, payload)));
+        } catch (error) {}
+      };
+      var filenameFromUrl = function(input) {
+        try {
+          var pathname = new URL(input, window.location.href).pathname;
+          var last = pathname.split('/').filter(Boolean).pop();
+          return decodeURIComponent(last || 'wtt-download');
+        } catch (error) {
+          return 'wtt-download';
+        }
+      };
+      var filenameFromDisposition = function(disposition, fallback) {
+        if (!disposition) return fallback;
+        var utf = disposition.match(/filename\\*=UTF-8''([^;]+)/i);
+        if (utf && utf[1]) {
+          try { return decodeURIComponent(utf[1].replace(/["']/g, '')); } catch (error) {}
+        }
+        var plain = disposition.match(/filename="?([^";]+)"?/i);
+        return plain && plain[1] ? plain[1] : fallback;
+      };
       try {
-        var link = document.createElement('a');
-        link.href = url;
-        link.download = '';
-        link.rel = 'noreferrer';
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        window.setTimeout(function() {
-          if (link.parentNode) link.parentNode.removeChild(link);
-        }, 1000);
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.withCredentials = true;
+        xhr.responseType = 'blob';
+        var fallbackName = filenameFromUrl(url);
+        postDownload({ status: 'start', url: url, fileName: fallbackName, loaded: 0, total: 0 });
+        xhr.onprogress = function(event) {
+          postDownload({
+            status: 'progress',
+            url: url,
+            fileName: fallbackName,
+            loaded: event.loaded || 0,
+            total: event.lengthComputable ? event.total : 0,
+            percent: event.lengthComputable && event.total ? Math.round(event.loaded / event.total * 100) : null
+          });
+        };
+        xhr.onerror = function() {
+          postDownload({ status: 'error', url: url, fileName: fallbackName, error: '下载失败' });
+        };
+        xhr.onload = function() {
+          if (xhr.status < 200 || xhr.status >= 300) {
+            postDownload({ status: 'error', url: url, fileName: fallbackName, error: 'HTTP ' + xhr.status });
+            return;
+          }
+          var fileName = filenameFromDisposition(xhr.getResponseHeader('Content-Disposition'), fallbackName);
+          postDownload({ status: 'saving', url: url, fileName: fileName, loaded: xhr.response && xhr.response.size || 0, total: xhr.response && xhr.response.size || 0, percent: 100 });
+          var blobUrl = URL.createObjectURL(xhr.response);
+          var link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = fileName;
+          link.rel = 'noreferrer';
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          window.setTimeout(function() {
+            if (link.parentNode) link.parentNode.removeChild(link);
+            URL.revokeObjectURL(blobUrl);
+            postDownload({ status: 'done', url: url, fileName: fileName, percent: 100 });
+          }, 1000);
+        };
+        xhr.send();
       } catch (error) {
-        window.location.href = url;
+        postDownload({ status: 'error', url: url, error: String(error && error.message || error || '下载失败') });
       }
     };
     var userInteracted = false;
@@ -67,6 +124,15 @@ const PREVENT_INITIAL_AUTOFOCUS_SCRIPT = `
 `;
 type RouteParams = Record<string, string | string[] | undefined>;
 type TopFrameNavigation = WebViewNavigation & { isTopFrame?: boolean };
+type DownloadProgress = {
+  status: 'start' | 'progress' | 'saving' | 'done' | 'error';
+  url?: string;
+  fileName?: string;
+  loaded?: number;
+  total?: number;
+  percent?: number | null;
+  error?: string;
+};
 
 function isTransientWebViewError(code: number, description: string): boolean {
   if (code === -8) return true;
@@ -191,6 +257,20 @@ function authenticatedDownloadScript(url: string): string {
   `;
 }
 
+function formatBytes(value?: number | null): string {
+  const bytes = Number(value || 0);
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB'];
+  let size = bytes / 1024;
+  let index = 0;
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index += 1;
+  }
+  return `${size >= 10 ? size.toFixed(0) : size.toFixed(1)} ${units[index]}`;
+}
+
 function appendMobileParams(
   baseUrl: string,
   path: string,
@@ -307,9 +387,11 @@ export default function WttWebViewScreen() {
   const [canGoBack, setCanGoBack] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const webErrorRetryRef = useRef(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const downloadClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const webBaseUrl = useMemo(
     () =>
@@ -346,6 +428,7 @@ export default function WttWebViewScreen() {
   useEffect(
     () => () => {
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      if (downloadClearTimerRef.current) clearTimeout(downloadClearTimerRef.current);
     },
     [],
   );
@@ -489,8 +572,35 @@ export default function WttWebViewScreen() {
 
   const handleWebMessage = useCallback(
     (event: WebViewMessageEvent) => {
-      if (event.nativeEvent.data === ANDROID_RESET_SESSION_MESSAGE) {
+      const data = event.nativeEvent.data;
+      if (data === ANDROID_RESET_SESSION_MESSAGE) {
         resetWebSession();
+        return;
+      }
+      try {
+        const payload = JSON.parse(data) as { type?: string } & DownloadProgress;
+        if (payload.type !== ANDROID_DOWNLOAD_MESSAGE) return;
+        if (downloadClearTimerRef.current) {
+          clearTimeout(downloadClearTimerRef.current);
+          downloadClearTimerRef.current = null;
+        }
+        setDownloadProgress({
+          status: payload.status,
+          url: payload.url,
+          fileName: payload.fileName,
+          loaded: payload.loaded,
+          total: payload.total,
+          percent: payload.percent,
+          error: payload.error,
+        });
+        if (payload.status === 'done' || payload.status === 'error') {
+          downloadClearTimerRef.current = setTimeout(() => {
+            setDownloadProgress(null);
+            downloadClearTimerRef.current = null;
+          }, payload.status === 'done' ? 1800 : 4200);
+        }
+      } catch {
+        // Ignore unrelated WebView messages.
       }
     },
     [resetWebSession],
@@ -516,6 +626,13 @@ export default function WttWebViewScreen() {
     setLoading(false);
     setError(webViewErrorText(code, description));
   }, []);
+
+  const downloadPercent =
+    typeof downloadProgress?.percent === 'number'
+      ? Math.max(0, Math.min(100, downloadProgress.percent))
+      : null;
+  const downloadLoadedText = formatBytes(downloadProgress?.loaded);
+  const downloadTotalText = formatBytes(downloadProgress?.total);
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -585,7 +702,7 @@ export default function WttWebViewScreen() {
           setCanGoBack(state.canGoBack && !isMobileLoginUrl(state.url));
         }}
         onShouldStartLoadWithRequest={shouldStartLoad}
-        applicationNameForUserAgent="WTT-Android-WebView/1.2.0"
+        applicationNameForUserAgent="WTT-Android-WebView/1.2.1"
       />
       {error ? (
         <View style={styles.errorCard}>
@@ -605,6 +722,48 @@ export default function WttWebViewScreen() {
           <TouchableOpacity style={styles.resetButton} onPress={resetWebSession}>
             <Text style={styles.resetText}>清缓存并重新登录</Text>
           </TouchableOpacity>
+        </View>
+      ) : null}
+      {downloadProgress ? (
+        <View style={styles.downloadCard}>
+          <View style={styles.downloadHeader}>
+            <Text style={styles.downloadTitle} numberOfLines={1}>
+              {downloadProgress.status === 'error'
+                ? '下载失败'
+                : downloadProgress.status === 'done'
+                  ? '下载完成'
+                  : downloadProgress.status === 'saving'
+                    ? '正在保存'
+                    : '正在下载'}
+            </Text>
+            {downloadPercent !== null ? (
+              <Text style={styles.downloadPercent}>{downloadPercent}%</Text>
+            ) : null}
+          </View>
+          <Text style={styles.downloadFileName} numberOfLines={1}>
+            {downloadProgress.fileName || 'WTT 附件'}
+          </Text>
+          {downloadProgress.status === 'error' ? (
+            <Text style={styles.downloadError} numberOfLines={2}>
+              {downloadProgress.error || '请稍后重试'}
+            </Text>
+          ) : (
+            <>
+              <View style={styles.downloadProgressTrack}>
+                <View
+                  style={[
+                    styles.downloadProgressFill,
+                    { width: `${downloadPercent ?? 18}%` },
+                  ]}
+                />
+              </View>
+              <Text style={styles.downloadMeta} numberOfLines={1}>
+                {downloadTotalText
+                  ? `${downloadLoadedText || '0 B'} / ${downloadTotalText}`
+                  : downloadLoadedText || '正在获取文件大小'}
+              </Text>
+            </>
+          )}
         </View>
       ) : null}
       {loading && !error ? (
@@ -726,5 +885,71 @@ const styles = StyleSheet.create({
   resetText: {
     color: '#475569',
     fontWeight: '800',
+  },
+  downloadCard: {
+    position: 'absolute',
+    zIndex: 12,
+    left: 16,
+    right: 16,
+    bottom: 18,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    backgroundColor: '#fff',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.14,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  downloadHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  downloadTitle: {
+    flex: 1,
+    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  downloadPercent: {
+    color: '#2563eb',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  downloadFileName: {
+    marginTop: 4,
+    color: '#475569',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  downloadProgressTrack: {
+    marginTop: 10,
+    height: 6,
+    overflow: 'hidden',
+    borderRadius: 999,
+    backgroundColor: '#e2e8f0',
+  },
+  downloadProgressFill: {
+    height: 6,
+    minWidth: 12,
+    borderRadius: 999,
+    backgroundColor: '#2563eb',
+  },
+  downloadMeta: {
+    marginTop: 7,
+    color: '#64748b',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  downloadError: {
+    marginTop: 6,
+    color: '#b91c1c',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
