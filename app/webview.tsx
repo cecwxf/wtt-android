@@ -34,6 +34,22 @@ const PREVENT_INITIAL_AUTOFOCUS_SCRIPT = `
   (function() {
     if (window.__WTT_ANDROID_FOCUS_GUARD__) return true;
     window.__WTT_ANDROID_FOCUS_GUARD__ = true;
+    window.__WTT_ANDROID_DOWNLOAD__ = function(url) {
+      try {
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = '';
+        link.rel = 'noreferrer';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        window.setTimeout(function() {
+          if (link.parentNode) link.parentNode.removeChild(link);
+        }, 1000);
+      } catch (error) {
+        window.location.href = url;
+      }
+    };
     var userInteracted = false;
     var unlock = function() { userInteracted = true; };
     ['touchstart', 'pointerdown', 'keydown'].forEach(function(eventName) {
@@ -149,6 +165,29 @@ function isWttAttachmentUrl(url: string): boolean {
 
 function isTopFrameNavigation(request: TopFrameNavigation): boolean {
   return request.isTopFrame !== false;
+}
+
+function authenticatedDownloadScript(url: string): string {
+  return `
+    (function() {
+      var url = ${JSON.stringify(url)};
+      if (window.__WTT_ANDROID_DOWNLOAD__) {
+        window.__WTT_ANDROID_DOWNLOAD__(url);
+      } else {
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = '';
+        link.rel = 'noreferrer';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        window.setTimeout(function() {
+          if (link.parentNode) link.parentNode.removeChild(link);
+        }, 1000);
+      }
+    })();
+    true;
+  `;
 }
 
 function appendMobileParams(
@@ -422,7 +461,7 @@ export default function WttWebViewScreen() {
           if (isWttAttachmentUrl(url)) {
             if (!isTopFrameNavigation(request)) return true;
             setLoading(false);
-            openExternalUrl(url);
+            webViewRef.current?.injectJavaScript(authenticatedDownloadScript(url));
             return false;
           }
           const mobileUrl = mobileUrlForAllowedHostNavigation(url, webBaseUrl);
@@ -529,7 +568,7 @@ export default function WttWebViewScreen() {
           }
         }}
         onFileDownload={(event) => {
-          openExternalUrl(event.nativeEvent.downloadUrl);
+          if (Platform.OS !== 'android') openExternalUrl(event.nativeEvent.downloadUrl);
         }}
         onMessage={handleWebMessage}
         downloadingMessage="正在下载 WTT 文件..."
