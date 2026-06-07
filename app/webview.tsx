@@ -128,6 +128,7 @@ function mobileUrlForAllowedHostNavigation(url: string, webBaseUrl: string): str
     const pathname = parsed.pathname.replace(/\/+$/, '') || '/';
     if (
       pathname === '/mobile/feed' ||
+      pathname === '/feed' ||
       pathname === '/mobile/settings' ||
       pathname === '/mobile/login' ||
       pathname === '/login' ||
