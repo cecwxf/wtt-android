@@ -35,6 +35,10 @@ interface FeedTopic {
   task_id?: string;
   task_type?: string;
   my_role?: string;
+  last_message_preview?: string;
+  primary_agent_id?: string;
+  agent_ids?: string[];
+  member_agent_ids?: string[];
 }
 
 interface P2PRequestItem {
@@ -96,6 +100,7 @@ export default function FeedScreen() {
 
   const [topics, setTopics] = useState<FeedTopic[]>([]);
   const [groupTopics, setGroupTopics] = useState<FeedTopic[]>([]);
+  const [recentTopics, setRecentTopics] = useState<FeedTopic[]>([]);
   const [p2pRequests, setP2pRequests] = useState<P2PRequestItem[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -217,6 +222,19 @@ export default function FeedScreen() {
         // Preserve the previous group/team list on transient network failures.
       }
 
+      try {
+        const recentRes = await fetch(`${WTT_API_URL}/api/topics/my-recent?limit=10`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (recentRes.ok) {
+          const data = await recentRes.json();
+          const raw = Array.isArray(data?.items) ? data.items : [];
+          setRecentTopics(sortTopicsByActivity(normalizeTopicList(raw).slice(0, 10)));
+        }
+      } catch {
+        // Preserve the previous recent list on transient network failures.
+      }
+
       const userId = user?.id ? String(user.id) : '';
       if (userId) {
         const reqRes = await fetch(
@@ -283,18 +301,30 @@ export default function FeedScreen() {
     const generalTasks = filteredTopics.filter((t) => isGeneralTaskTopic(t));
     const p2p = filteredTopics.filter((t) => topicKind(t) === 'p2p' && !t.task_id);
     const discuss = filteredGroups.filter(isUserGroupTopic);
+    const recent = (!q
+      ? recentTopics
+      : recentTopics.filter((t) => {
+          const hay =
+            `${t.name || ''} ${t.description || ''} ${t.id || ''} ${t.last_message_preview || ''}`.toLowerCase();
+          return hay.includes(q);
+        })).slice(0, 10);
     const subscriber = filteredTopics.filter((t) => !t.task_id && topicKind(t) === 'broadcast');
 
     return {
+      recent,
       generalTasks,
       p2p,
       discuss,
       subscriber,
-      total: generalTasks.length + p2p.length + discuss.length + subscriber.length,
+      total: recent.length + generalTasks.length + p2p.length + discuss.length + subscriber.length,
     };
-  }, [groupTopics, topics, topicSearch]);
+  }, [groupTopics, recentTopics, topics, topicSearch]);
 
   const openTopic = (topic: FeedTopic) => {
+    const primaryAgentId = String(topic.primary_agent_id || topic.agent_ids?.[0] || topic.member_agent_ids?.[0] || '');
+    if (primaryAgentId && primaryAgentId !== selectedAgentId) {
+      void selectAgent(primaryAgentId);
+    }
     router.push({
       pathname: '/chat/[id]',
       params: { id: topic.id, name: topic.name },
@@ -679,6 +709,7 @@ export default function FeedScreen() {
               </View>
             )}
 
+            {renderGroup('Recent', grouped.recent, 'No recent chats')}
             {renderGroup('General Tasks', grouped.generalTasks, 'No general task topics')}
             {renderGroup('P2P', grouped.p2p, 'No p2p topics')}
             {renderGroup('群聊 / 团队', grouped.discuss, '暂无群聊/团队')}
