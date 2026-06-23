@@ -123,6 +123,16 @@ export class WTTApiClient {
     });
   }
 
+  async loginWithPhonePassword(phone: string, password: string) {
+    return this.request<{ access_token: string; token_type: string }>(
+      '/auth/phone/password-login',
+      {
+        method: 'POST',
+        body: JSON.stringify({ phone, password }),
+      },
+    );
+  }
+
   async approveMobileLoginSession(
     sessionId: string,
     nonce: string,

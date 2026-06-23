@@ -11,7 +11,7 @@ import {
   Alert,
   StyleSheet,
 } from 'react-native';
-import { Link, router, useLocalSearchParams } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { useAuthStore } from '@/stores/auth';
 import {
   getOAuthRedirectUri,
@@ -21,60 +21,29 @@ import {
 } from '@/lib/auth/oauth';
 
 export default function LoginScreen() {
-  const params = useLocalSearchParams<{ email?: string; activation_hint?: string }>();
-  const [email, setEmail] = useState(typeof params.email === 'string' ? params.email : '');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<OAuthProvider | null>(null);
-  const [resendingActivation, setResendingActivation] = useState(false);
-  const [showResend, setShowResend] = useState(params.activation_hint === '1');
   const login = useAuthStore((s) => s.login);
   const loginWithOAuth = useAuthStore((s) => s.loginWithOAuth);
-  const resendActivation = useAuthStore((s) => s.resendActivation);
   const githubEnabled = isOAuthProviderEnabled('github');
   const googleEnabled = isOAuthProviderEnabled('google');
   const twitterEnabled = isOAuthProviderEnabled('twitter');
-  const anyOAuth = githubEnabled || googleEnabled || twitterEnabled;
 
   const handleLogin = async () => {
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail || !password.trim()) {
+    const normalizedPhone = phone.trim();
+    if (!normalizedPhone || !password.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
     setLoading(true);
     try {
-      await login(normalizedEmail, password);
+      await login(normalizedPhone, password);
       router.replace('/webview');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed';
-      if (message.includes('EMAIL_NOT_VERIFIED')) {
-        setShowResend(true);
-        Alert.alert(
-          'Email not activated',
-          'Please activate your email first. Need to resend?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Resend',
-              onPress: async () => {
-                try {
-                  setResendingActivation(true);
-                  const data = await resendActivation(normalizedEmail);
-                  Alert.alert('Done', data?.message || 'Activation email sent');
-                } catch (e: unknown) {
-                  const msg = e instanceof Error ? e.message : 'Failed to resend';
-                  Alert.alert('Resend failed', msg);
-                } finally {
-                  setResendingActivation(false);
-                }
-              },
-            },
-          ],
-        );
-      } else {
-        Alert.alert('Login Failed', message);
-      }
+      Alert.alert('Login Failed', message);
     } finally {
       setLoading(false);
     }
@@ -93,24 +62,6 @@ export default function LoginScreen() {
       }
     } finally {
       setOauthLoading(null);
-    }
-  };
-
-  const handleResendActivation = async () => {
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) {
-      Alert.alert('Error', 'Please enter your email first');
-      return;
-    }
-    setResendingActivation(true);
-    try {
-      const data = await resendActivation(normalizedEmail);
-      Alert.alert('Done', data?.message || 'Activation email sent');
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to resend';
-      Alert.alert('Resend failed', message);
-    } finally {
-      setResendingActivation(false);
     }
   };
 
@@ -134,19 +85,6 @@ export default function LoginScreen() {
           <Text style={styles.appName}>WTT</Text>
           <Text style={styles.tagline}>Agent Communication Platform</Text>
         </View>
-
-        {/* QR Login — top */}
-        <TouchableOpacity
-          style={styles.providerBtn}
-          onPress={() => router.push('/(auth)/qr-login' as never)}
-          disabled={busy}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.providerIcon, { backgroundColor: '#EEF2FF' }]}>
-            <Text style={styles.qrGlyph}>⎔</Text>
-          </View>
-          <Text style={styles.providerLabel}>Scan QR Code</Text>
-        </TouchableOpacity>
 
         {/* OAuth — full-width rows like wtt-web */}
         {googleEnabled && (
@@ -204,19 +142,20 @@ export default function LoginScreen() {
         {/* Divider */}
         <View style={styles.dividerRow}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or sign in with email</Text>
+          <Text style={styles.dividerText}>or sign in with phone</Text>
           <View style={styles.dividerLine} />
         </View>
 
-        {/* Email / password form */}
+        {/* Phone / password form */}
         <View style={styles.form}>
           <TextInput
             style={styles.input}
-            placeholder="Email"
+            placeholder="Phone number"
             placeholderTextColor="#A1A1AA"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            inputMode="tel"
             autoCapitalize="none"
             autoCorrect={false}
           />
@@ -228,30 +167,6 @@ export default function LoginScreen() {
             onChangeText={setPassword}
             secureTextEntry
           />
-
-          <View style={styles.forgotRow}>
-            <Link href="/(auth)/reset-password" asChild>
-              <TouchableOpacity>
-                <Text style={styles.forgotLink}>Forgot password?</Text>
-              </TouchableOpacity>
-            </Link>
-          </View>
-
-          {/* Resend activation — only when needed */}
-          {showResend && !!email.trim() && (
-            <TouchableOpacity
-              style={styles.resendBtn}
-              onPress={handleResendActivation}
-              disabled={resendingActivation || busy}
-              activeOpacity={0.8}
-            >
-              {resendingActivation ? (
-                <ActivityIndicator color="#6366F1" size="small" />
-              ) : (
-                <Text style={styles.resendText}>Resend activation email</Text>
-              )}
-            </TouchableOpacity>
-          )}
 
           {/* Sign In */}
           <TouchableOpacity

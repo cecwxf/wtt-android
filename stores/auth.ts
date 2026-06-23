@@ -25,7 +25,7 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
 
-  login: (email: string, password: string) => Promise<void>;
+  login: (phone: string, password: string) => Promise<void>;
   loginWithOAuth: (provider: OAuthProvider, oauth: OAuthCodeFlowResult) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<RegisterResult>;
   resendActivation: (email: string) => Promise<{ ok: boolean; message: string; email?: string }>;
@@ -69,9 +69,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
   isAuthenticated: false,
 
-  login: async (email: string, password: string) => {
+  login: async (phone: string, password: string) => {
     const client = new WTTApiClient(WTT_API_URL);
-    const data = await client.login(email, password);
+    const data = await client.loginWithPhonePassword(phone.trim(), password);
     const token = data.access_token;
     const user = await fetchCurrentUser(token);
     await persistSession(token, user, set);
