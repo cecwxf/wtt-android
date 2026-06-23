@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Switch } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Switch, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
@@ -9,6 +10,34 @@ import { useThemeStore } from '@/stores/theme';
 import { useI18nStore } from '@/stores/i18n';
 import { useAppSettingsStore } from '@/stores/app-settings';
 import { WTT_API_URL, WS_BASE_URL } from '@/lib/api/base-url';
+
+const PRO_UPGRADE_URL = 'https://www.wtt.sh/upgrade?source=android&product=wtt';
+
+type BillingMe = {
+  entitlement?: {
+    plan?: string;
+    ends_at?: string | null;
+    is_trial?: boolean;
+    limits?: {
+      window_limit?: number;
+      monthly_limit?: number;
+    };
+  };
+  cloud_agent_usage?: {
+    window_count?: number;
+    monthly_count?: number;
+  };
+};
+
+function formatTrialText(endsAt?: string | null): string {
+  if (!endsAt) return 'Pro trial active';
+  const expiresAt = new Date(endsAt).getTime();
+  if (!Number.isFinite(expiresAt)) return 'Pro trial active';
+  const remainingMs = expiresAt - Date.now();
+  if (remainingMs <= 0) return 'Pro trial ended';
+  const days = Math.ceil(remainingMs / 86_400_000);
+  return `Pro trial: ${days} day${days === 1 ? '' : 's'} left`;
+}
 
 const THEME_OPTIONS = [
   { value: 'system' as const, label: 'System' },
@@ -33,6 +62,9 @@ export default function ProfileScreen() {
   const locale = useI18nStore((s) => s.locale);
   const setLocale = useI18nStore((s) => s.setLocale);
   const t = useI18nStore((s) => s.t);
+  const token = useAuthStore((s) => s.token);
+  const [billing, setBilling] = useState<BillingMe | null>(null);
+  const [billingError, setBillingError] = useState('');
 
   const messageNotify = useAppSettingsStore((s) => s.messageNotify);
   const agentAlert = useAppSettingsStore((s) => s.agentAlert);
@@ -90,12 +122,59 @@ export default function ProfileScreen() {
     Alert.alert('Fallback Poll', 'Used when WebSocket is disconnected', buttons);
   };
 
+  useEffect(() => {
+    let alive = true;
+    if (!token) {
+      setBilling(null);
+      return;
+    }
+    fetch(`${WTT_API_URL}/api/billing/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return (await res.json()) as BillingMe;
+      })
+      .then((data) => {
+        if (!alive) return;
+        setBilling(data);
+        setBillingError('');
+      })
+      .catch((err) => {
+        if (!alive) return;
+        setBillingError(err instanceof Error ? err.message : 'Unable to load membership');
+      });
+    return () => {
+      alive = false;
+    };
+  }, [token]);
+
+  const handleUpgradePro = async () => {
+    try {
+      await Linking.openURL(PRO_UPGRADE_URL);
+    } catch {
+      Alert.alert('Unable to open Pro page', PRO_UPGRADE_URL);
+    }
+  };
+
   const themeModeLabel = THEME_OPTIONS.find((o) => o.value === themeMode)?.label ?? 'System';
   const langLabel = LANG_OPTIONS.find((o) => o.value === locale)?.label ?? 'English';
 
   const wsColor =
     wsState === 'connected' ? '#22C55E' : wsState === 'connecting' ? '#EAB308' : '#D1D5DB';
   const appVersion = String(Constants.expoConfig?.version || '1.0.0');
+  const plan = String(billing?.entitlement?.plan || 'free').toLowerCase();
+  const isTrial = plan === 'pro' && Boolean(billing?.entitlement?.is_trial);
+  const isPro = plan === 'pro';
+  const planLabel = isTrial ? 'Pro Trial' : isPro ? 'Pro' : 'Free';
+  const monthlyUsed = billing?.cloud_agent_usage?.monthly_count;
+  const monthlyLimit = billing?.entitlement?.limits?.monthly_limit;
+  const usageLabel =
+    typeof monthlyUsed === 'number' && typeof monthlyLimit === 'number'
+      ? `${monthlyUsed}/${monthlyLimit}`
+      : isPro
+        ? 'Available'
+        : 'Upgrade required';
 
   return (
     <ScrollView className="flex-1 bg-gray-50" style={styles.root}>
@@ -136,6 +215,51 @@ export default function ProfileScreen() {
                 ? 'Connecting...'
                 : 'Disconnected'}
           </Text>
+        </View>
+      </View>
+
+      {/* Pro Membership */}
+      <View className="mx-4 mt-4 mb-4" style={styles.section}>
+        <Text className="text-sm font-semibold text-gray-500 mb-2 ml-1" style={styles.sectionTitle}>
+          WTT Pro
+        </Text>
+        <View className="bg-white rounded-xl overflow-hidden" style={styles.proCard}>
+          <View style={styles.proHeader}>
+            <View style={styles.proIcon}>
+              <Ionicons name="sparkles-outline" size={22} color="#4F46E5" />
+            </View>
+            <View style={styles.proCopy}>
+              <Text style={styles.proTitle}>Membership</Text>
+              <Text style={styles.proDesc}>
+                Cloud Agent, group work, Arena, Studio, and higher request limits.
+              </Text>
+            </View>
+            <View style={[styles.proBadge, isPro ? styles.proBadgeActive : null]}>
+              <Text style={[styles.proBadgeText, isPro ? styles.proBadgeTextActive : null]}>
+                {planLabel}
+              </Text>
+            </View>
+          </View>
+          {isTrial ? (
+            <Text style={styles.trialNotice}>{formatTrialText(billing?.entitlement?.ends_at)}</Text>
+          ) : null}
+          <View style={styles.proMetaRow}>
+            <View style={styles.proMetaItem}>
+              <Text style={styles.proMetaLabel}>Cloud Agent</Text>
+              <Text style={styles.proMetaValue}>{isPro ? 'Enabled' : 'Pro required'}</Text>
+            </View>
+            <View style={styles.proMetaItem}>
+              <Text style={styles.proMetaLabel}>Monthly usage</Text>
+              <Text style={styles.proMetaValue}>{usageLabel}</Text>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.proButton} onPress={handleUpgradePro} activeOpacity={0.82}>
+            <Ionicons name="card-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.proButtonText}>
+              {isTrial ? 'Convert to Pro' : isPro ? 'Manage Pro' : 'Upgrade Pro'}
+            </Text>
+          </TouchableOpacity>
+          {billingError ? <Text style={styles.proError}>{billingError}</Text> : null}
         </View>
       </View>
 
@@ -467,6 +591,114 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+  },
+  proCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D7D3FF',
+    padding: 14,
+  },
+  proHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  proIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  proCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  proTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  proDesc: {
+    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#6B7280',
+  },
+  proBadge: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    backgroundColor: '#F8FAFC',
+  },
+  proBadgeActive: {
+    borderColor: '#C7D2FE',
+    backgroundColor: '#EEF2FF',
+  },
+  proBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  proBadgeTextActive: {
+    color: '#4338CA',
+  },
+  trialNotice: {
+    marginTop: 10,
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  proMetaRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  proMetaItem: {
+    flex: 1,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    padding: 10,
+  },
+  proMetaLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '700',
+  },
+  proMetaValue: {
+    marginTop: 4,
+    fontSize: 13,
+    color: '#111827',
+    fontWeight: '800',
+  },
+  proButton: {
+    marginTop: 12,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#4F46E5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  proButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  proError: {
+    marginTop: 8,
+    fontSize: 11,
+    color: '#DC2626',
+    fontWeight: '700',
   },
   settingsRow: {
     flexDirection: 'row',
