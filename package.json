@@ -14,6 +14,7 @@
     "release:play": "./scripts/release-play-internal.sh",
     "release:china": "./scripts/release-china-package.sh",
     "build:android:arm64": "./scripts/build-android-arm64-release.sh",
+    "build:android:universal": "./scripts/build-android-universal-release.sh",
     "build:play": "APP_VARIANT=global eas build --platform android --profile production-global",
     "build:china": "APP_VARIANT=china eas build --platform android --profile production-china",
     "reset-project": "node ./scripts/reset-project.js"

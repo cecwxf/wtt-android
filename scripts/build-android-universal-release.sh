@@ -10,7 +10,7 @@ if [[ ! -f "$ANDROID_DIR/app/build.gradle" ]]; then
 fi
 
 cd "$ANDROID_DIR"
-./gradlew :app:clean :app:assembleRelease -PreactNativeArchitectures=arm64-v8a
+./gradlew :app:clean :app:assembleRelease -PreactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64
 
-echo "arm64-v8a release APK:"
+echo "universal release APK:"
 ls -lh "$ANDROID_DIR/app/build/outputs/apk/release/app-release.apk"
