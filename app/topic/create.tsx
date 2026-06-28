@@ -48,7 +48,7 @@ export default function CreateTopicScreen() {
 
     setCreating(true);
     try {
-      const res = await fetch(`${WTT_API_URL}/api/topics`, {
+      const res = await fetch(`${WTT_API_URL}/topics`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,

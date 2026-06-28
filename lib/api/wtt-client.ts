@@ -133,6 +133,50 @@ export class WTTApiClient {
     );
   }
 
+  async sendPhoneCode(phone: string, purpose: 'login' | 'register' | 'reset_password') {
+    return this.request<{
+      ok: boolean;
+      message: string;
+      phone: string;
+      expires_in_seconds?: number;
+      debug_code?: string;
+    }>('/auth/phone/send-code', {
+      method: 'POST',
+      body: JSON.stringify({ phone, purpose }),
+    });
+  }
+
+  async loginWithPhoneCode(phone: string, code: string) {
+    return this.request<{ access_token: string; token_type: string }>('/auth/phone/login', {
+      method: 'POST',
+      body: JSON.stringify({ phone, code }),
+    });
+  }
+
+  async registerWithPhone(displayName: string, phone: string, code: string, password: string) {
+    return this.request<{
+      ok: boolean;
+      message: string;
+      user_id?: string;
+      phone?: string;
+    }>('/auth/phone/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        display_name: displayName,
+        phone,
+        code,
+        password,
+      }),
+    });
+  }
+
+  async resetPasswordWithPhone(phone: string, code: string, newPassword: string) {
+    return this.request<{ ok: boolean; message: string }>('/auth/phone/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ phone, code, new_password: newPassword }),
+    });
+  }
+
   async approveMobileLoginSession(
     sessionId: string,
     nonce: string,

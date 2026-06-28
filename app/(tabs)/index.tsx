@@ -198,7 +198,7 @@ export default function FeedScreen() {
 
       if (selectedAgentId && !fetchedTopics) {
         const topicRes = await fetch(
-          `${WTT_API_URL}/api/topics/subscribed?agent_id=${encodeURIComponent(selectedAgentId)}`,
+          `${WTT_API_URL}/topics/subscribed?agent_id=${encodeURIComponent(selectedAgentId)}`,
           { headers: { Authorization: `Bearer ${token}` } },
         );
 
@@ -211,7 +211,7 @@ export default function FeedScreen() {
       }
 
       try {
-        const groupRes = await fetch(`${WTT_API_URL}/api/topics/my-groups`, {
+        const groupRes = await fetch(`${WTT_API_URL}/topics/my-groups`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (groupRes.ok) {
@@ -223,7 +223,7 @@ export default function FeedScreen() {
       }
 
       try {
-        const recentRes = await fetch(`${WTT_API_URL}/api/topics/my-recent?limit=10`, {
+        const recentRes = await fetch(`${WTT_API_URL}/topics/my-recent?limit=10`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (recentRes.ok) {
@@ -238,7 +238,7 @@ export default function FeedScreen() {
       const userId = user?.id ? String(user.id) : '';
       if (userId) {
         const reqRes = await fetch(
-          `${WTT_API_URL}/api/p2p-requests/for-user?user_id=${encodeURIComponent(userId)}&status=pending`,
+          `${WTT_API_URL}/p2p-requests/for-user?user_id=${encodeURIComponent(userId)}&status=pending`,
           { headers: { Authorization: `Bearer ${token}` } },
         );
         if (reqRes.ok) {
@@ -337,7 +337,7 @@ export default function FeedScreen() {
 
     setTaskCreating(true);
     try {
-      const res = await fetch(`${WTT_API_URL}/api/tasks`, {
+      const res = await fetch(`${WTT_API_URL}/tasks`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -378,7 +378,7 @@ export default function FeedScreen() {
     setP2PCreating(true);
     try {
       const fromUserId = user?.id ? String(user.id) : selectedAgentId;
-      const res = await fetch(`${WTT_API_URL}/api/p2p-requests`, {
+      const res = await fetch(`${WTT_API_URL}/p2p-requests`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -414,7 +414,7 @@ export default function FeedScreen() {
     setDiscussCreating(true);
     try {
       const fromUserId = user?.id ? String(user.id) : selectedAgentId;
-      const res = await fetch(`${WTT_API_URL}/api/p2p-requests`, {
+      const res = await fetch(`${WTT_API_URL}/p2p-requests`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -459,7 +459,7 @@ export default function FeedScreen() {
     setInviteCreating(true);
     try {
       const res = await fetch(
-        `${WTT_API_URL}/api/topics/${inviteTopicId}/join?agent_id=${encodeURIComponent(target)}`,
+        `${WTT_API_URL}/topics/${inviteTopicId}/join?agent_id=${encodeURIComponent(target)}`,
         {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
@@ -484,7 +484,7 @@ export default function FeedScreen() {
   const handleAcceptRequest = async (requestId: string) => {
     if (!token) return;
     try {
-      const res = await fetch(`${WTT_API_URL}/api/p2p-requests/${requestId}/accept`, {
+      const res = await fetch(`${WTT_API_URL}/p2p-requests/${requestId}/accept`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -506,7 +506,7 @@ export default function FeedScreen() {
   const handleRejectRequest = async (requestId: string) => {
     if (!token) return;
     try {
-      await fetch(`${WTT_API_URL}/api/p2p-requests/${requestId}/reject`, {
+      await fetch(`${WTT_API_URL}/p2p-requests/${requestId}/reject`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -21,7 +21,6 @@ interface AgentsState {
   hydrateAgents: (raw: unknown) => Promise<void>;
   selectAgent: (agentId: string) => Promise<void>;
   loadSelectedAgent: () => Promise<void>;
-  claimAgent: (token: string, agentId: string, inviteCode: string) => Promise<void>;
 }
 
 const SELECTED_AGENT_KEY = 'wtt_selected_agent';
@@ -34,7 +33,7 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
   fetchAgents: async (token: string) => {
     set({ isLoading: true });
     try {
-      const endpoints = [`${WTT_API_URL}/api/agents/my`, `${WTT_API_URL}/api/users/me/agents`];
+      const endpoints = [`${WTT_API_URL}/agents/my`];
       let data: unknown = null;
       let ok = false;
 
@@ -90,21 +89,5 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
   loadSelectedAgent: async () => {
     const saved = await getSecureItem(SELECTED_AGENT_KEY);
     if (saved) set({ selectedAgentId: saved });
-  },
-
-  claimAgent: async (token: string, agentId: string, inviteCode: string) => {
-    const res = await fetch(`${WTT_API_URL}/api/agents/${agentId}/claim`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ invite_code: inviteCode }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: 'Claim failed' }));
-      throw new Error(err.detail || 'Claim failed');
-    }
-    await get().fetchAgents(token);
   },
 }));

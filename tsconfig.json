@@ -3,6 +3,33 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
+      "@expo/vector-icons": [
+        "./node_modules/@expo/vector-icons"
+      ],
+      "react-native": [
+        "./node_modules/react-native"
+      ],
+      "react-native-markdown-display": [
+        "./node_modules/react-native-markdown-display"
+      ],
+      "@wtt/mobile-chat-kit": [
+        "./packages/wtt-mobile-chat-kit/src/index"
+      ],
+      "@wtt/mobile-chat-kit/message-attachments": [
+        "./packages/wtt-mobile-chat-kit/src/message-attachments"
+      ],
+      "@wtt/mobile-chat-kit/upload": [
+        "./packages/wtt-mobile-chat-kit/src/upload"
+      ],
+      "@wtt/mobile-chat-kit/run-status": [
+        "./packages/wtt-mobile-chat-kit/src/run-status"
+      ],
+      "@wtt/mobile-chat-kit/attachment-options": [
+        "./packages/wtt-mobile-chat-kit/src/attachment-options"
+      ],
+      "@wtt/mobile-chat-kit/messages": [
+        "./packages/wtt-mobile-chat-kit/src/messages"
+      ],
       "@/*": [
         "./*"
       ]

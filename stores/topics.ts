@@ -99,7 +99,7 @@ export const useTopicsStore = create<TopicsState>((set, get) => ({
     }
 
     try {
-      const res = await fetch(`${WTT_API_URL}/api/topics`, {
+      const res = await fetch(`${WTT_API_URL}/topics`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -124,7 +124,7 @@ export const useTopicsStore = create<TopicsState>((set, get) => ({
 
     try {
       const res = await fetch(
-        `${WTT_API_URL}/api/topics/search?query=${encodeURIComponent(query)}`,
+        `${WTT_API_URL}/topics/search?query=${encodeURIComponent(query)}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         },
@@ -153,7 +153,7 @@ export const useTopicsStore = create<TopicsState>((set, get) => ({
 
     try {
       const res = await fetch(
-        `${WTT_API_URL}/api/topics/subscribed?agent_id=${encodeURIComponent(agentId)}`,
+        `${WTT_API_URL}/topics/subscribed?agent_id=${encodeURIComponent(agentId)}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         },
@@ -175,7 +175,7 @@ export const useTopicsStore = create<TopicsState>((set, get) => ({
     }
 
     const res = await fetch(
-      `${WTT_API_URL}/api/topics/${topicId}/join?agent_id=${encodeURIComponent(agentId)}`,
+      `${WTT_API_URL}/topics/${topicId}/join?agent_id=${encodeURIComponent(agentId)}`,
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -203,7 +203,7 @@ export const useTopicsStore = create<TopicsState>((set, get) => ({
     }
 
     const res = await fetch(
-      `${WTT_API_URL}/api/topics/${topicId}/leave?agent_id=${encodeURIComponent(agentId)}`,
+      `${WTT_API_URL}/topics/${topicId}/leave?agent_id=${encodeURIComponent(agentId)}`,
       {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },

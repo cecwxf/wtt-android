@@ -50,6 +50,32 @@ const LANG_OPTIONS = [
   { value: 'zh' as const, label: '中文' },
 ];
 
+function shortId(id?: string) {
+  if (!id) return '';
+  return id.length > 12 ? `${id.slice(0, 8)}...` : id;
+}
+
+function userPrimaryName(user: ReturnType<typeof useAuthStore.getState>['user']) {
+  return (
+    user?.display_name ||
+    user?.username ||
+    user?.phone ||
+    user?.email ||
+    (user?.id ? `User ${shortId(user.id)}` : 'User')
+  );
+}
+
+function userSecondaryLine(user: ReturnType<typeof useAuthStore.getState>['user']) {
+  if (!user) return 'Not signed in';
+  const parts = [
+    user.username && user.username !== user.display_name ? `@${user.username}` : '',
+    user.phone || '',
+    user.email || '',
+    user.id ? `ID: ${shortId(user.id)}` : '',
+  ].filter(Boolean);
+  return parts.join(' · ');
+}
+
 export default function ProfileScreen() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
@@ -128,7 +154,7 @@ export default function ProfileScreen() {
       setBilling(null);
       return;
     }
-    fetch(`${WTT_API_URL}/api/billing/me`, {
+    fetch(`${WTT_API_URL}/billing/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(async (res) => {
@@ -175,6 +201,8 @@ export default function ProfileScreen() {
       : isPro
         ? 'Available'
         : 'Upgrade required';
+  const primaryName = userPrimaryName(user);
+  const secondaryLine = userSecondaryLine(user);
 
   return (
     <ScrollView className="flex-1 bg-gray-50" style={styles.root}>
@@ -188,14 +216,14 @@ export default function ProfileScreen() {
           style={styles.avatarCircle}
         >
           <Text className="text-white text-2xl font-bold" style={styles.avatarText}>
-            {(user?.display_name || user?.username || '?')[0].toUpperCase()}
+            {(primaryName || '?')[0].toUpperCase()}
           </Text>
         </View>
         <Text className="text-lg font-bold text-gray-900" style={styles.username}>
-          {user?.display_name || user?.username || 'User'}
+          {primaryName}
         </Text>
         <Text className="text-sm text-gray-500 mt-0.5" style={styles.email}>
-          {user?.email || ''}
+          {secondaryLine}
         </Text>
         <View className="flex-row items-center mt-2" style={styles.statusRow}>
           <View
@@ -321,16 +349,6 @@ export default function ProfileScreen() {
             })
           )}
         </View>
-        <TouchableOpacity
-          className="mt-2 bg-indigo-50 rounded-xl py-3 items-center"
-          style={styles.claimButton}
-          onPress={() => router.push('/agent/claim')}
-          activeOpacity={0.7}
-        >
-          <Text className="text-indigo-600 font-semibold text-sm" style={styles.claimText}>
-            + Claim Agent
-          </Text>
-        </TouchableOpacity>
       </View>
 
       {/* Linked Devices */}
@@ -768,20 +786,6 @@ const styles = StyleSheet.create({
   },
   noAgentText: {
     color: '#9CA3AF',
-    fontSize: 14,
-  },
-  claimButton: {
-    marginTop: 8,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#C7D2FE',
-  },
-  claimText: {
-    color: '#4F46E5',
-    fontWeight: '600',
     fontSize: 14,
   },
   logoutSection: {

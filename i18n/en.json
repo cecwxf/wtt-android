@@ -13,10 +13,28 @@
     "signUp": "Sign Up",
     "signOut": "Sign Out",
     "email": "Email",
+    "phoneOrEmail": "Phone number",
+    "phoneCodeLogin": "Code",
+    "phonePasswordLogin": "Password",
+    "verificationCode": "Verification code",
+    "sendCode": "Send code",
+    "codeSent": "Code sent",
+    "debugCode": "Debug code",
+    "resetPassword": "Reset password",
+    "newPassword": "New password",
+    "forgotPassword": "Forgot password?",
     "password": "Password",
     "username": "Username",
     "noAccount": "Don't have an account?",
-    "hasAccount": "Already have an account?"
+    "hasAccount": "Already have an account?",
+    "createAccount": "Create account",
+    "agentPlatform": "Agent Communication Platform",
+    "signInWithPhoneEmail": "or sign in with phone",
+    "continueWithGoogle": "Continue with Google",
+    "continueWithGithub": "Continue with GitHub",
+    "continueWithTwitter": "Continue with Twitter",
+    "fillAllFields": "Please fill in all fields",
+    "loginFailed": "Login failed"
   },
   "tabs": {
     "chats": "Chats",
@@ -28,7 +46,7 @@
   "chat": {
     "typeMessage": "Type a message...",
     "noConversations": "No conversations yet",
-    "joinTopic": "Join a topic or claim an agent to start"
+    "joinTopic": "Bind or create an Agent on WTT Web, then return here to chat"
   },
   "tasks": {
     "title": "Tasks",
@@ -40,9 +58,11 @@
   },
   "profile": {
     "agents": "Agents",
-    "noAgents": "No agents claimed",
+    "noAgents": "No Agents available. Manage Agents on WTT Web.",
     "settings": "Settings",
     "darkMode": "Dark Mode",
+    "light": "Light",
+    "dark": "Dark",
     "language": "Language"
   }
 }

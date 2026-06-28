@@ -1,34 +1,64 @@
 import { useState } from 'react';
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert,
-  StyleSheet,
+  View,
 } from 'react-native';
 import { Link, router } from 'expo-router';
+import { wttApi } from '@/lib/api/wtt-client';
+import { useAppTheme } from '@/lib/app-theme';
 import { useAuthStore } from '@/stores/auth';
+import { useI18nStore } from '@/stores/i18n';
 
 export default function RegisterScreen() {
+  const theme = useAppTheme();
+  const t = useI18nStore((s) => s.t);
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
+  const [codeSending, setCodeSending] = useState(false);
+  const [codeStatus, setCodeStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const register = useAuthStore((s) => s.register);
+  const login = useAuthStore((s) => s.login);
+
+  const handleSendCode = async () => {
+    const normalizedPhone = phone.trim();
+    if (!normalizedPhone) {
+      Alert.alert('Error', 'Please enter your phone number');
+      return;
+    }
+    setCodeSending(true);
+    try {
+      const result = await wttApi.sendPhoneCode(normalizedPhone, 'register');
+      setCodeStatus(
+        result.debug_code
+          ? `${t.auth.codeSent}: ${t.auth.debugCode} ${result.debug_code}`
+          : t.auth.codeSent,
+      );
+    } catch (err: unknown) {
+      Alert.alert('Code failed', err instanceof Error ? err.message : 'Failed to send code');
+    } finally {
+      setCodeSending(false);
+    }
+  };
 
   const handleRegister = async () => {
     const normalizedName = username.trim();
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPhone = phone.trim();
+    const normalizedCode = code.trim();
 
-    if (!normalizedName || !normalizedEmail || !password.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
+    if (!normalizedName || !normalizedPhone || !normalizedCode || !password.trim()) {
+      Alert.alert('Error', t.auth.fillAllFields);
       return;
     }
-
     if (password.length < 8) {
       Alert.alert('Error', 'Password must be at least 8 characters');
       return;
@@ -36,21 +66,14 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      const result = await register(normalizedName, normalizedEmail, password);
-      const message = result?.message || 'Registration successful. Activation email sent.';
-      Alert.alert('Activation required', message, [
-        {
-          text: 'Go to Sign In',
-          onPress: () =>
-            router.replace({
-              pathname: '/(auth)/login',
-              params: { email: normalizedEmail, activation_hint: '1' },
-            }),
-        },
-      ]);
+      await register(normalizedName, normalizedPhone, normalizedCode, password);
+      await login(normalizedPhone, password);
+      router.replace('/webview');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Registration failed';
-      Alert.alert('Registration Failed', message);
+      Alert.alert(
+        'Registration Failed',
+        err instanceof Error ? err.message : 'Registration failed',
+      );
     } finally {
       setLoading(false);
     }
@@ -59,76 +82,85 @@ export default function RegisterScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-background-light dark:bg-background-dark"
-      style={styles.root}
+      style={[styles.root, { backgroundColor: theme.background }]}
     >
-      <View className="flex-1 justify-center px-8" style={styles.inner}>
-        <View className="items-center mb-12" style={styles.logoArea}>
-          <Text className="text-4xl font-inter-bold text-primary" style={styles.title}>
-            WTT
-          </Text>
-          <Text
-            className="text-base text-gray-500 dark:text-gray-400 mt-2 font-inter"
-            style={styles.subtitle}
-          >
-            Create your account
-          </Text>
+      <View style={styles.inner}>
+        <View style={styles.logoArea}>
+          <Text style={[styles.title, { color: theme.accent }]}>WTT</Text>
+          <Text style={[styles.subtitle, { color: theme.textMuted }]}>{t.auth.createAccount}</Text>
         </View>
 
-        <Text
-          className="text-sm font-inter text-gray-600 dark:text-gray-400 mb-1 ml-1"
-          style={styles.label}
-        >
-          Username
-        </Text>
         <TextInput
-          className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-4 font-inter"
-          style={styles.input}
-          placeholder="Choose a username"
-          placeholderTextColor="#9CA3AF"
+          style={[
+            styles.input,
+            { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
+          ]}
+          placeholder={t.auth.username}
+          placeholderTextColor={theme.placeholder}
           value={username}
           onChangeText={setUsername}
           autoCapitalize="none"
           autoCorrect={false}
         />
-
-        <Text
-          className="text-sm font-inter text-gray-600 dark:text-gray-400 mb-1 ml-1"
-          style={styles.label}
-        >
-          Email
-        </Text>
         <TextInput
-          className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-4 font-inter"
-          style={styles.input}
-          placeholder="you@example.com"
-          placeholderTextColor="#9CA3AF"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
+          style={[
+            styles.input,
+            { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
+          ]}
+          placeholder={t.auth.phoneOrEmail}
+          placeholderTextColor={theme.placeholder}
+          value={phone}
+          onChangeText={setPhone}
+          keyboardType="phone-pad"
+          inputMode="tel"
           autoCapitalize="none"
           autoCorrect={false}
         />
-
-        <Text
-          className="text-sm font-inter text-gray-600 dark:text-gray-400 mb-1 ml-1"
-          style={styles.label}
-        >
-          Password
-        </Text>
+        <View style={styles.codeRow}>
+          <TextInput
+            style={[
+              styles.codeInput,
+              { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
+            ]}
+            placeholder={t.auth.verificationCode}
+            placeholderTextColor={theme.placeholder}
+            value={code}
+            onChangeText={setCode}
+            keyboardType="number-pad"
+          />
+          <TouchableOpacity
+            style={[styles.codeBtn, { borderColor: theme.border }]}
+            disabled={codeSending}
+            onPress={handleSendCode}
+          >
+            {codeSending ? (
+              <ActivityIndicator color={theme.accent} size="small" />
+            ) : (
+              <Text style={[styles.codeBtnText, { color: theme.accent }]}>{t.auth.sendCode}</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+        {codeStatus ? (
+          <Text style={[styles.codeStatus, { color: theme.textSubtle }]}>{codeStatus}</Text>
+        ) : null}
         <TextInput
-          className="bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-6 font-inter"
-          style={styles.passwordInput}
+          style={[
+            styles.input,
+            { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
+          ]}
           placeholder="Password (min 8 chars)"
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor={theme.placeholder}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
         />
 
         <TouchableOpacity
-          className="bg-primary rounded-xl py-4 items-center mb-6"
-          style={styles.signUpButton}
+          style={[
+            styles.signUpButton,
+            { backgroundColor: theme.accent },
+            loading && styles.disabled,
+          ]}
           onPress={handleRegister}
           disabled={loading}
           activeOpacity={0.8}
@@ -136,24 +168,15 @@ export default function RegisterScreen() {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text className="text-white text-base font-inter-semibold" style={styles.signUpText}>
-              Create Account
-            </Text>
+            <Text style={styles.signUpText}>{t.auth.createAccount}</Text>
           )}
         </TouchableOpacity>
 
-        <View className="flex-row justify-center" style={styles.loginRow}>
-          <Text
-            className="text-gray-500 dark:text-gray-400 font-inter text-sm"
-            style={styles.loginText}
-          >
-            Already have an account?{' '}
-          </Text>
+        <View style={styles.loginRow}>
+          <Text style={[styles.loginText, { color: theme.textSubtle }]}>{t.auth.hasAccount} </Text>
           <Link href="/(auth)/login" asChild>
             <TouchableOpacity>
-              <Text className="text-primary font-inter-semibold text-sm" style={styles.loginLink}>
-                Sign In
-              </Text>
+              <Text style={[styles.loginLink, { color: theme.accent }]}>{t.auth.signIn}</Text>
             </TouchableOpacity>
           </Link>
         </View>
@@ -163,80 +186,48 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  inner: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  logoArea: {
-    alignItems: 'center',
-    marginBottom: 48,
-  },
-  title: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#6366F1',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginTop: 8,
-  },
-  label: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 4,
-    marginLeft: 4,
-  },
+  root: { flex: 1 },
+  inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 32 },
+  logoArea: { alignItems: 'center', marginBottom: 36 },
+  title: { fontSize: 36, fontWeight: '800' },
+  subtitle: { fontSize: 16, marginTop: 8, fontWeight: '600' },
   input: {
-    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 13,
     fontSize: 16,
-    color: '#111827',
-    marginBottom: 16,
+    marginBottom: 14,
   },
-  passwordInput: {
-    backgroundColor: '#fff',
+  codeRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  codeInput: {
+    flex: 1,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 13,
     fontSize: 16,
-    color: '#111827',
-    marginBottom: 24,
   },
+  codeBtn: {
+    minWidth: 104,
+    borderWidth: 1,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  codeBtnText: { fontSize: 13, fontWeight: '800' },
+  codeStatus: { fontSize: 12, marginBottom: 12, textAlign: 'center' },
   signUpButton: {
-    backgroundColor: '#6366F1',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
+    marginTop: 8,
     marginBottom: 24,
   },
-  signUpText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  loginRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  loginText: {
-    color: '#6B7280',
-    fontSize: 14,
-  },
-  loginLink: {
-    color: '#6366F1',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  signUpText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  disabled: { opacity: 0.7 },
+  loginRow: { flexDirection: 'row', justifyContent: 'center' },
+  loginText: { fontSize: 14 },
+  loginLink: { fontSize: 14, fontWeight: '700' },
 });

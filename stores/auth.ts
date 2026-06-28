@@ -9,14 +9,16 @@ interface User {
   username: string;
   email: string;
   display_name?: string;
+  phone?: string;
+  user_id?: string;
   avatar_url?: string;
 }
 
 interface RegisterResult {
   ok: boolean;
   message: string;
-  email?: string;
-  requires_activation?: boolean;
+  phone?: string;
+  user_id?: string;
 }
 
 interface AuthState {
@@ -26,8 +28,14 @@ interface AuthState {
   isAuthenticated: boolean;
 
   login: (phone: string, password: string) => Promise<void>;
+  loginWithPhoneCode: (phone: string, code: string) => Promise<void>;
   loginWithOAuth: (provider: OAuthProvider, oauth: OAuthCodeFlowResult) => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<RegisterResult>;
+  register: (
+    username: string,
+    phone: string,
+    code: string,
+    password: string,
+  ) => Promise<RegisterResult>;
   resendActivation: (email: string) => Promise<{ ok: boolean; message: string; email?: string }>;
   logout: () => Promise<void>;
   loadToken: () => Promise<void>;
@@ -37,13 +45,28 @@ interface AuthState {
 const TOKEN_KEY = 'wtt_auth_token';
 const USER_KEY = 'wtt_user';
 
+function normalizeUser(raw: Partial<User> | null | undefined): User | null {
+  if (!raw) return null;
+  const id = String(raw.id || raw.user_id || '').trim();
+  const displayName = String(raw.display_name || raw.username || raw.phone || raw.email || '').trim();
+  return {
+    id,
+    user_id: String(raw.user_id || id),
+    username: String(raw.username || displayName || id || 'user'),
+    email: String(raw.email || ''),
+    display_name: displayName || undefined,
+    phone: raw.phone ? String(raw.phone) : undefined,
+    avatar_url: raw.avatar_url ? String(raw.avatar_url) : undefined,
+  };
+}
+
 async function fetchCurrentUser(token: string): Promise<User | null> {
   try {
-    const res = await fetch(`${WTT_API_URL}/api/users/me`, {
+    const res = await fetch(`${WTT_API_URL}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!res.ok) return null;
-    return (await res.json()) as User;
+    return normalizeUser((await res.json()) as Partial<User>);
   } catch {
     return null;
   }
@@ -54,13 +77,14 @@ async function persistSession(
   user: User | null,
   setState: (partial: Partial<AuthState>) => void,
 ) {
+  const normalized = normalizeUser(user);
   await setSecureItem(TOKEN_KEY, token);
-  if (user) {
-    await setSecureItem(USER_KEY, JSON.stringify(user));
+  if (normalized) {
+    await setSecureItem(USER_KEY, JSON.stringify(normalized));
   } else {
     await deleteSecureItem(USER_KEY);
   }
-  setState({ token, user, isAuthenticated: true });
+  setState({ token, user: normalized, isAuthenticated: true });
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -72,6 +96,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (phone: string, password: string) => {
     const client = new WTTApiClient(WTT_API_URL);
     const data = await client.loginWithPhonePassword(phone.trim(), password);
+    const token = data.access_token;
+    const user = await fetchCurrentUser(token);
+    await persistSession(token, user, set);
+  },
+
+  loginWithPhoneCode: async (phone: string, code: string) => {
+    const client = new WTTApiClient(WTT_API_URL);
+    const data = await client.loginWithPhoneCode(phone.trim(), code.trim());
     const token = data.access_token;
     const user = await fetchCurrentUser(token);
     await persistSession(token, user, set);
@@ -103,10 +135,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await persistSession(token, user, set);
   },
 
-  register: async (username: string, email: string, password: string) => {
+  register: async (username: string, phone: string, code: string, password: string) => {
     const client = new WTTApiClient(WTT_API_URL);
-    // Web parity: register requires email activation; do not auto-login.
-    return client.register(username, email, password);
+    return client.registerWithPhone(username, phone.trim(), code.trim(), password);
   },
 
   resendActivation: async (email: string) => {
@@ -124,7 +155,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const token = await getSecureItem(TOKEN_KEY);
       const userStr = await getSecureItem(USER_KEY);
-      const user = userStr ? JSON.parse(userStr) : null;
+      let user = normalizeUser(userStr ? JSON.parse(userStr) : null);
+      if (token && (!user || !user.id)) {
+        user = await fetchCurrentUser(token);
+        if (user) await setSecureItem(USER_KEY, JSON.stringify(user));
+      }
       set({
         token,
         user,
@@ -137,8 +172,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   setToken: async (token: string, user?: User) => {
+    const normalized = normalizeUser(user) || normalizeUser(get().user);
     await setSecureItem(TOKEN_KEY, token);
-    if (user) await setSecureItem(USER_KEY, JSON.stringify(user));
-    set({ token, user: user ?? get().user, isAuthenticated: true });
+    if (normalized) await setSecureItem(USER_KEY, JSON.stringify(normalized));
+    set({ token, user: normalized, isAuthenticated: true });
   },
 }));

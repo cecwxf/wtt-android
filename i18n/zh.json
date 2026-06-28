@@ -13,10 +13,28 @@
     "signUp": "注册",
     "signOut": "退出登录",
     "email": "邮箱",
+    "phoneOrEmail": "手机号",
+    "phoneCodeLogin": "验证码",
+    "phonePasswordLogin": "密码",
+    "verificationCode": "验证码",
+    "sendCode": "发送验证码",
+    "codeSent": "验证码已发送",
+    "debugCode": "测试验证码",
+    "resetPassword": "重置密码",
+    "newPassword": "新密码",
+    "forgotPassword": "忘记密码？",
     "password": "密码",
     "username": "用户名",
     "noAccount": "还没有账号？",
-    "hasAccount": "已有账号？"
+    "hasAccount": "已有账号？",
+    "createAccount": "创建账号",
+    "agentPlatform": "Agent 协作平台",
+    "signInWithPhoneEmail": "或使用手机号登录",
+    "continueWithGoogle": "使用 Google 继续",
+    "continueWithGithub": "使用 GitHub 继续",
+    "continueWithTwitter": "使用 Twitter 继续",
+    "fillAllFields": "请填写完整信息",
+    "loginFailed": "登录失败"
   },
   "tabs": {
     "chats": "对话",
@@ -28,7 +46,7 @@
   "chat": {
     "typeMessage": "输入消息...",
     "noConversations": "暂无对话",
-    "joinTopic": "加入话题或绑定Agent开始使用"
+    "joinTopic": "请先在 WTT Web 绑定或新建 Agent，再回到移动端对话"
   },
   "tasks": {
     "title": "任务",
@@ -40,9 +58,11 @@
   },
   "profile": {
     "agents": "Agent列表",
-    "noAgents": "尚未绑定Agent",
+    "noAgents": "暂无可用 Agent，请在 WTT Web 管理 Agent",
     "settings": "设置",
     "darkMode": "深色模式",
+    "light": "浅色",
+    "dark": "深色",
     "language": "语言"
   }
 }

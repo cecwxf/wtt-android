@@ -2,12 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
   Image,
   Alert,
   Animated,
@@ -15,8 +10,17 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Markdown from 'react-native-markdown-display';
+import {
+  buildContentWithAttachments,
+  MobileChatSurface,
+} from '@wtt/mobile-chat-kit';
+import {
+  MOBILE_ATTACHMENT_DOCUMENT_TYPES,
+  mobileCameraPickerOptions,
+  mobileImagePickerOptions,
+} from '@wtt/mobile-chat-kit/attachment-options';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { Audio } from 'expo-av';
 import { useAuthStore } from '@/stores/auth';
 import { useAgentsStore } from '@/stores/agents';
@@ -25,42 +29,11 @@ import { useWebSocketStore } from '@/stores/websocket';
 import { useAppSettingsStore } from '@/stores/app-settings';
 import { formatTime } from '@/lib/time';
 import { haptic } from '@/lib/haptics';
-import type { Message } from '@/lib/api/wtt-client';
-
-const hasMarkdown = (text: string) =>
-  /[*_`#\[\]!\->|]/.test(text) && (
-    /\*\*.+\*\*/.test(text) ||
-    /`.+`/.test(text) ||
-    /^#{1,6}\s/m.test(text) ||
-    /^\s*[-*]\s/m.test(text) ||
-    /^\s*\d+\.\s/m.test(text) ||
-    /```/.test(text) ||
-    /\[.+\]\(.+\)/.test(text)
-  );
-
-const userMdStyles = {
-  body: { color: '#1F2937', fontSize: 15, lineHeight: 22, fontFamily: 'Inter' },
-  code_inline: { backgroundColor: '#E0E7FF', color: '#4338CA', fontFamily: 'JetBrainsMono', fontSize: 13, paddingHorizontal: 4, borderRadius: 3 },
-  code_block: { backgroundColor: '#E0E7FF', color: '#4338CA', fontFamily: 'JetBrainsMono', fontSize: 13, padding: 8, borderRadius: 6 },
-  fence: { backgroundColor: '#E0E7FF', color: '#4338CA', fontFamily: 'JetBrainsMono', fontSize: 13, padding: 8, borderRadius: 6 },
-  link: { color: '#4338CA' },
-  heading1: { fontSize: 18, fontWeight: '700' as const, marginBottom: 4, color: '#1F2937' },
-  heading2: { fontSize: 16, fontWeight: '600' as const, marginBottom: 3, color: '#1F2937' },
-  heading3: { fontSize: 15, fontWeight: '600' as const, marginBottom: 2, color: '#1F2937' },
-  bullet_list_icon: { color: '#6366F1' },
-};
-
-const agentMdStyles = {
-  body: { color: '#1F2937', fontSize: 15, lineHeight: 22, fontFamily: 'Inter' },
-  code_inline: { backgroundColor: '#F1F5F9', color: '#334155', fontFamily: 'JetBrainsMono', fontSize: 13, paddingHorizontal: 4, borderRadius: 3 },
-  code_block: { backgroundColor: '#F1F5F9', color: '#334155', fontFamily: 'JetBrainsMono', fontSize: 13, padding: 8, borderRadius: 6 },
-  fence: { backgroundColor: '#F1F5F9', color: '#334155', fontFamily: 'JetBrainsMono', fontSize: 13, padding: 8, borderRadius: 6 },
-  link: { color: '#6366F1' },
-  heading1: { fontSize: 18, fontWeight: '700' as const, marginBottom: 4, color: '#1E293B' },
-  heading2: { fontSize: 16, fontWeight: '600' as const, marginBottom: 3, color: '#1E293B' },
-  heading3: { fontSize: 15, fontWeight: '600' as const, marginBottom: 2, color: '#1E293B' },
-  bullet_list_icon: { color: '#6366F1' },
-};
+import {
+  uploadMobileAsset,
+  type LocalUploadAsset,
+  type PendingUploadAsset,
+} from '@/lib/mobile-attachments';
 
 export default function ChatScreen() {
   const { id: topicId, name: topicName } = useLocalSearchParams<{ id: string; name?: string }>();
@@ -76,11 +49,13 @@ export default function ChatScreen() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [pendingAssets, setPendingAssets] = useState<PendingUploadAsset[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState('');
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [audioUri, setAudioUri] = useState<string | null>(null);
-  const [showScrollBtn, setShowScrollBtn] = useState(false);
-  const flatListRef = useRef<FlatList>(null);
   const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -99,18 +74,44 @@ export default function ChatScreen() {
   }, [token, topicId, fetchMessages, wsState, fallbackPollSeconds]);
 
   const handleSend = useCallback(async () => {
-    if (!text.trim() || !token || !topicId || !agentId || sending) return;
-    const content = text.trim();
+    if ((!text.trim() && pendingAssets.length === 0) || !token || !topicId || !agentId || sending || uploading) {
+      return;
+    }
+    const content = buildContentWithAttachments(text, pendingAssets);
     setText('');
     setImageUri(null);
+    setPendingAssets([]);
     setSending(true);
     try {
       await sendMessage(token, topicId, content, agentId);
       haptic.light();
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setSending(false);
-  }, [text, token, topicId, agentId, sending, sendMessage]);
+  }, [agentId, pendingAssets, sendMessage, sending, text, token, topicId, uploading]);
+
+  const uploadAttachment = useCallback(
+    async (asset: LocalUploadAsset) => {
+      if (!token || uploading) return;
+      setUploading(true);
+      setUploadProgress(0);
+      setUploadError('');
+      try {
+        const uploaded = await uploadMobileAsset(asset, token, setUploadProgress);
+        setPendingAssets((prev) => [...prev, uploaded]);
+        haptic.light();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Upload failed';
+        setUploadError(message);
+        Alert.alert('Upload failed', message);
+      } finally {
+        setUploading(false);
+        setUploadProgress(null);
+      }
+    },
+    [token, uploading],
+  );
 
   const handlePickImage = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -118,21 +119,78 @@ export default function ChatScreen() {
       Alert.alert('Permission needed', 'Please grant photo library access to attach images.');
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-      allowsEditing: true,
-    });
+    const result = await ImagePicker.launchImageLibraryAsync(mobileImagePickerOptions());
     if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
+      const asset = result.assets[0];
+      setImageUri(asset.uri);
+        await uploadAttachment({
+          uri: asset.uri,
+          name: asset.fileName || undefined,
+          mimeType: asset.mimeType || undefined,
+          size: asset.fileSize || undefined,
+        });
+      setImageUri(null);
     }
-  }, []);
+  }, [uploadAttachment]);
+
+  const handleTakePhoto = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Please grant camera access to take photos.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync(mobileCameraPickerOptions());
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      setImageUri(asset.uri);
+        await uploadAttachment({
+          uri: asset.uri,
+          name: asset.fileName || `photo-${Date.now()}.jpg`,
+          mimeType: asset.mimeType || 'image/jpeg',
+          size: asset.fileSize || undefined,
+        });
+      setImageUri(null);
+    }
+  }, [uploadAttachment]);
+
+  const handlePickFile = useCallback(async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+      type: [...MOBILE_ATTACHMENT_DOCUMENT_TYPES],
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    await uploadAttachment({
+      uri: asset.uri,
+      name: asset.name,
+      mimeType: asset.mimeType,
+      size: asset.size,
+    });
+  }, [uploadAttachment]);
+
+  const openAttachmentMenu = useCallback(() => {
+    if (uploading) return;
+    Alert.alert(
+      'Attach',
+      'Choose what to add',
+      [
+        { text: 'Photo Library', onPress: () => void handlePickImage() },
+        { text: 'Camera', onPress: () => void handleTakePhoto() },
+        { text: 'File', onPress: () => void handlePickFile() },
+      ],
+      { cancelable: true },
+    );
+  }, [handlePickFile, handlePickImage, handleTakePhoto, uploading]);
 
   const startRecording = useCallback(async () => {
     try {
       const perm = await Audio.requestPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Permission needed', 'Please grant microphone access to record voice messages.');
+        Alert.alert(
+          'Permission needed',
+          'Please grant microphone access to record voice messages.',
+        );
         return;
       }
       await Audio.setAudioModeAsync({
@@ -140,7 +198,7 @@ export default function ChatScreen() {
         playsInSilentModeIOS: true,
       });
       const { recording: rec } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
+        Audio.RecordingOptionsPresets.HIGH_QUALITY,
       );
       haptic.medium();
       setRecording(rec);
@@ -153,7 +211,7 @@ export default function ChatScreen() {
         Animated.sequence([
           Animated.timing(pulseAnim, { toValue: 1.3, duration: 600, useNativeDriver: true }),
           Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
-        ])
+        ]),
       ).start();
     } catch (err) {
       console.error('Failed to start recording', err);
@@ -179,10 +237,7 @@ export default function ChatScreen() {
         Alert.alert(
           'Voice Recorded',
           `Duration: ${durationStr}\n\nVoice messages will be sent as audio attachments once media upload is enabled. For now, you can describe the content in text.`,
-          [
-            { text: 'Discard', style: 'cancel', onPress: () => setAudioUri(null) },
-            { text: 'OK' },
-          ]
+          [{ text: 'Discard', style: 'cancel', onPress: () => setAudioUri(null) }, { text: 'OK' }],
         );
       }
     } catch (err) {
@@ -198,7 +253,9 @@ export default function ChatScreen() {
     pulseAnim.setValue(1);
     try {
       await recording.stopAndUnloadAsync();
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     setRecording(null);
     setRecordingDuration(0);
     setAudioUri(null);
@@ -210,197 +267,111 @@ export default function ChatScreen() {
     return topicId ?? 'Chat';
   }, [topicId, topicName]);
 
-  const getDateLabel = (ts: string) => {
-    const d = new Date(ts);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (d.toDateString() === today.toDateString()) return 'Today';
-    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  const shouldShowDateSep = (idx: number) => {
-    if (idx === 0) return true;
-    const prev = messages[idx - 1];
-    const curr = messages[idx];
-    return new Date(prev.timestamp).toDateString() !== new Date(curr.timestamp).toDateString();
-  };
-
-  const AGENT_COLORS = ['#6366F1', '#EC4899', '#14B8A6', '#F97316', '#8B5CF6', '#EF4444'];
-  const agentColor = (id: string) => AGENT_COLORS[Math.abs([...id].reduce((a, c) => a + c.charCodeAt(0), 0)) % AGENT_COLORS.length];
-
-  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
-    const isUser = item.sender_type === 'human';
-    const useMd = hasMarkdown(item.content);
-    const showDate = shouldShowDateSep(index);
-
-    return (
-      <>
-        {showDate && (
-          <View style={cs.dateSep}>
-            <View style={cs.dateSepLine} />
-            <Text style={cs.dateSepText}>{getDateLabel(item.timestamp)}</Text>
-            <View style={cs.dateSepLine} />
-          </View>
-        )}
-        <View
-          style={[cs.msgRow, isUser ? cs.msgRowUser : cs.msgRowAgent]}
-        >
-          {/* Agent avatar */}
-          {!isUser && (
-            <View style={[cs.agentAvatar, { backgroundColor: agentColor(item.sender_id) }]}>
-              <Text style={cs.agentAvatarText}>
-                {(item.sender_id || '?')[0].toUpperCase()}
-              </Text>
-            </View>
-          )}
-          <View style={{ flex: 1, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
-            {!isUser && (
-              <Text style={cs.senderLabel}>
-                {item.sender_id}
-              </Text>
-            )}
-            <View
-              style={[cs.bubble, isUser ? cs.bubbleUser : cs.bubbleAgent]}
-            >
-              {useMd ? (
-                <Markdown style={isUser ? userMdStyles : agentMdStyles}>
-                  {item.content}
-                </Markdown>
-              ) : (
-                <Text style={cs.msgText}>
-                  {item.content}
-                </Text>
-              )}
-              <Text
-                style={[cs.timestamp, isUser && cs.timestampRight]}
-              >
-                {formatTime(item.timestamp)}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </>
-    );
-  };
-
   return (
     <>
       <Stack.Screen options={{ title: headerTitle, headerShown: true }} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        className="flex-1 bg-gray-50"
-        style={cs.root}
-        keyboardVerticalOffset={90}
-      >
-        {isLoading ? (
-          <View className="flex-1 items-center justify-center" style={cs.loading}>
-            <ActivityIndicator size="large" color="#6366F1" />
-          </View>
-        ) : (
-          <FlatList
-            ref={flatListRef}
-            data={messages}
-            keyExtractor={(item) => item.message_id}
-            renderItem={renderMessage}
-            contentContainerStyle={{ paddingVertical: 8 }}
-            onContentSizeChange={() =>
-              flatListRef.current?.scrollToEnd({ animated: false })
-            }
-            onScroll={(e) => {
-              const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-              const distFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
-              setShowScrollBtn(distFromBottom > 200);
-            }}
-            scrollEventThrottle={100}
-            ListEmptyComponent={
-              <View className="flex-1 items-center justify-center py-20" style={cs.empty}>
-                <Ionicons name="chatbubble-ellipses-outline" size={40} color="#D1D5DB" />
-                <Text className="mt-3 text-gray-400 text-sm font-inter" style={cs.emptyText}>No messages yet</Text>
+      <MobileChatSurface
+        messages={messages.map((item) => ({
+          id: item.message_id,
+          senderId: item.sender_id,
+          senderType: item.sender_type,
+          content: item.content,
+          timestamp: item.timestamp,
+        }))}
+        input={text}
+        onInputChange={setText}
+        onSend={handleSend}
+        onAttachPress={openAttachmentMenu}
+        onRemoveAttachment={(index) => setPendingAssets((prev) => prev.filter((_, i) => i !== index))}
+        loading={isLoading}
+        sending={sending}
+        uploading={uploading}
+        uploadProgress={uploadProgress}
+        uploadError={uploadError}
+        pendingAttachments={pendingAssets}
+        emptyTitle="No messages yet"
+        emptyText="Start the conversation from here."
+        placeholder="Type a message..."
+        theme={{ accent: '#6366F1', accentSoft: '#EEF2FF', accentBorder: '#C7D2FE' }}
+        formatTime={formatTime}
+        composerTopContent={
+          <>
+            {recording && (
+              <View
+                className="bg-red-500/95 py-4 px-6 flex-row items-center justify-between"
+                style={cs.recordingBar}
+              >
+                <View className="flex-row items-center" style={cs.recordingLeft}>
+                  <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                    <View className="w-3 h-3 rounded-full bg-white" style={cs.recordDot} />
+                  </Animated.View>
+                  <Text className="text-white font-bold ml-3 text-base" style={cs.recordTime}>
+                    {Math.floor(recordingDuration / 60)}:
+                    {String(recordingDuration % 60).padStart(2, '0')}
+                  </Text>
+                </View>
+                <View className="flex-row" style={cs.recordActions}>
+                  <TouchableOpacity
+                    className="bg-white/30 rounded-full px-4 py-2 mr-3"
+                    style={cs.recordCancel}
+                    onPress={cancelRecording}
+                  >
+                    <Text className="text-white font-semibold" style={cs.recordCancelText}>
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className="bg-white rounded-full px-4 py-2"
+                    style={cs.recordStop}
+                    onPress={stopRecording}
+                  >
+                    <Text className="text-red-500 font-bold" style={cs.recordStopText}>
+                      Stop
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            }
-          />
-        )}
-
-        {/* Scroll to bottom FAB */}
-        {showScrollBtn && !recording && (
-          <TouchableOpacity
-            className="absolute right-4 bottom-20 w-10 h-10 rounded-full bg-white shadow-md items-center justify-center border border-gray-100"
-            style={cs.scrollFab}
-            onPress={() => flatListRef.current?.scrollToEnd({ animated: true })}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-down" size={20} color="#6366F1" />
-          </TouchableOpacity>
-        )}
-
-        {/* Recording overlay */}
-        {recording && (
-          <View className="absolute bottom-16 left-0 right-0 bg-red-500/95 py-4 px-6 flex-row items-center justify-between z-10" style={cs.recordingBar}>
-            <View className="flex-row items-center" style={cs.recordingLeft}>
-              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                <View className="w-3 h-3 rounded-full bg-white" style={cs.recordDot} />
-              </Animated.View>
-              <Text className="text-white font-bold ml-3 text-base" style={cs.recordTime}>
-                {Math.floor(recordingDuration / 60)}:{String(recordingDuration % 60).padStart(2, '0')}
-              </Text>
-            </View>
-            <View className="flex-row" style={cs.recordActions}>
-              <TouchableOpacity
-                className="bg-white/30 rounded-full px-4 py-2 mr-3"
-                style={cs.recordCancel}
-                onPress={cancelRecording}
-              >
-                <Text className="text-white font-semibold" style={cs.recordCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                className="bg-white rounded-full px-4 py-2"
-                style={cs.recordStop}
-                onPress={stopRecording}
-              >
-                <Text className="text-red-500 font-bold" style={cs.recordStopText}>Stop</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Audio preview */}
-        {audioUri && !recording && (
-          <View className="px-4 pb-1" style={cs.previewWrap}>
-            <View className="flex-row items-center bg-indigo-50 rounded-lg px-3 py-2" style={cs.audioPreview}>
-              <Ionicons name="musical-note" size={18} color="#6366F1" />
-              <Text className="flex-1 text-sm text-indigo-700 ml-2 font-inter" style={cs.audioLabel}>
-                Voice recording ({recordingDuration}s)
-              </Text>
-              <TouchableOpacity onPress={() => setAudioUri(null)}>
-                <Ionicons name="close-circle" size={20} color="#6366F1" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Image preview */}
-        {imageUri && (
-          <View className="px-4 pb-1" style={cs.previewWrap}>
-            <View style={{ position: 'relative' }}>
-              <Image source={{ uri: imageUri }} className="w-20 h-20 rounded-lg" style={cs.imgPreview} />
-              <TouchableOpacity
-                className="absolute -top-1 -right-1 bg-gray-800 rounded-full w-5 h-5 items-center justify-center"
-                style={cs.imgClose}
-                onPress={() => setImageUri(null)}
-              >
-                <Ionicons name="close" size={12} color="#FFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Input Bar */}
-        <View className="flex-row items-end px-3 py-2 bg-white border-t border-gray-100" style={cs.inputBar}>
-          <TouchableOpacity className="p-2" style={cs.iconBtn} onPress={handlePickImage}>
-            <Ionicons name="image-outline" size={24} color="#64748B" />
-          </TouchableOpacity>
+            )}
+            {audioUri && !recording && (
+              <View className="px-4 pb-1" style={cs.previewWrap}>
+                <View
+                  className="flex-row items-center bg-indigo-50 rounded-lg px-3 py-2"
+                  style={cs.audioPreview}
+                >
+                  <Ionicons name="musical-note" size={18} color="#6366F1" />
+                  <Text
+                    className="flex-1 text-sm text-indigo-700 ml-2 font-inter"
+                    style={cs.audioLabel}
+                  >
+                    Voice recording ({recordingDuration}s)
+                  </Text>
+                  <TouchableOpacity onPress={() => setAudioUri(null)}>
+                    <Ionicons name="close-circle" size={20} color="#6366F1" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            {imageUri && (
+              <View className="px-4 pb-1" style={cs.previewWrap}>
+                <View style={{ position: 'relative' }}>
+                  <Image
+                    source={{ uri: imageUri }}
+                    className="w-20 h-20 rounded-lg"
+                    style={cs.imgPreview}
+                  />
+                  <TouchableOpacity
+                    className="absolute -top-1 -right-1 bg-gray-800 rounded-full w-5 h-5 items-center justify-center"
+                    style={cs.imgClose}
+                    onPress={() => setImageUri(null)}
+                  >
+                    <Ionicons name="close" size={12} color="#FFF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </>
+        }
+        composerExtraLeftActions={
           <TouchableOpacity
             className={`p-2 ${recording ? 'opacity-50' : ''}`}
             style={cs.iconBtn}
@@ -412,35 +383,8 @@ export default function ChatScreen() {
               color={recording ? '#EF4444' : '#64748B'}
             />
           </TouchableOpacity>
-          <TextInput
-            className="flex-1 bg-gray-100 rounded-2xl px-4 py-2 mx-1 text-base font-inter text-gray-900 max-h-28"
-            style={cs.textInput}
-            placeholder="Type a message..."
-            placeholderTextColor="#9CA3AF"
-            value={text}
-            onChangeText={setText}
-            multiline
-            onSubmitEditing={handleSend}
-            blurOnSubmit={false}
-          />
-          <TouchableOpacity
-            className={`p-2 rounded-full ${text.trim() ? 'bg-indigo-500' : 'bg-gray-200'}`}
-            style={[cs.sendBtn, text.trim() ? cs.sendActive : cs.sendInactive]}
-            onPress={handleSend}
-            disabled={!text.trim() || sending}
-          >
-            {sending ? (
-              <ActivityIndicator size={20} color="#FFFFFF" />
-            ) : (
-              <Ionicons
-                name="send"
-                size={20}
-                color={text.trim() ? '#FFFFFF' : '#9CA3AF'}
-              />
-            )}
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+        }
+      />
     </>
   );
 }
@@ -450,40 +394,201 @@ const cs = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
   emptyText: { marginTop: 12, color: '#9CA3AF', fontSize: 14 },
-  msgRow: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 4 },
-  msgRowUser: { justifyContent: 'flex-end' },
+  msgRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+  },
+  msgRowUser: { justifyContent: 'flex-start' },
   msgRowAgent: { alignItems: 'flex-start' },
-  agentAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginRight: 8, marginTop: 18 },
+  agentAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    marginTop: 18,
+  },
   agentAvatarText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
   senderLabel: { fontSize: 12, color: '#6366F1', marginBottom: 2, marginLeft: 2 },
   bubble: { maxWidth: '85%', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
-  bubbleUser: { backgroundColor: '#EEF2FF', borderTopRightRadius: 8 },
-  bubbleAgent: { backgroundColor: '#fff', borderTopLeftRadius: 8, borderWidth: 1, borderColor: '#F3F4F6' },
+  bubbleUser: { backgroundColor: '#EEF2FF', borderTopLeftRadius: 8 },
+  bubbleAgent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 8,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
   msgText: { fontSize: 15, lineHeight: 22, color: '#1F2937' },
+  messageAttachmentList: { gap: 8, marginTop: 8 },
+  messageAttachmentCard: {
+    minWidth: 220,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    padding: 8,
+  },
+  messageAttachmentImage: { width: 54, height: 54, borderRadius: 12, backgroundColor: '#E2E8F0' },
+  messageAttachmentIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  messageAttachmentCopy: { flex: 1, minWidth: 0 },
+  messageAttachmentLabel: { color: '#0F172A', fontSize: 13, fontWeight: '900' },
+  messageAttachmentKind: {
+    marginTop: 2,
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
   timestamp: { fontSize: 11, color: '#9CA3AF', marginTop: 4 },
-  timestampRight: { textAlign: 'right' },
-  scrollFab: { position: 'absolute', right: 16, bottom: 80, width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#F3F4F6', elevation: 3 },
-  recordingBar: { position: 'absolute', bottom: 64, left: 0, right: 0, backgroundColor: 'rgba(239,68,68,0.95)', paddingVertical: 16, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  timestampRight: { textAlign: 'left' },
+  scrollFab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 80,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    elevation: 3,
+  },
+  recordingBar: {
+    position: 'absolute',
+    bottom: 64,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(239,68,68,0.95)',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   recordingLeft: { flexDirection: 'row', alignItems: 'center' },
   recordDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#fff' },
   recordTime: { color: '#fff', fontWeight: 'bold', marginLeft: 12, fontSize: 16 },
   recordActions: { flexDirection: 'row' },
-  recordCancel: { backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 9999, paddingHorizontal: 16, paddingVertical: 8, marginRight: 12 },
+  recordCancel: {
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 9999,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 12,
+  },
   recordCancelText: { color: '#fff', fontWeight: '600' },
-  recordStop: { backgroundColor: '#fff', borderRadius: 9999, paddingHorizontal: 16, paddingVertical: 8 },
+  recordStop: {
+    backgroundColor: '#fff',
+    borderRadius: 9999,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
   recordStopText: { color: '#EF4444', fontWeight: 'bold' },
   previewWrap: { paddingHorizontal: 16, paddingBottom: 4 },
-  audioPreview: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EEF2FF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  audioPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EEF2FF',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
   audioLabel: { flex: 1, fontSize: 14, color: '#4338CA', marginLeft: 8 },
   imgPreview: { width: 80, height: 80, borderRadius: 8 },
-  imgClose: { position: 'absolute', top: -4, right: -4, backgroundColor: '#1F2937', borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
-  inputBar: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#F3F4F6' },
+  imgClose: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#1F2937',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachments: {
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  assetChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  assetName: { flex: 1, color: '#111827', fontSize: 13, fontWeight: '700' },
+  assetKind: {
+    color: '#6366F1',
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  uploadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 14,
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  uploadText: { color: '#4338CA', fontSize: 12, fontWeight: '700' },
+  uploadError: { color: '#B91C1C', fontSize: 12, fontWeight: '700' },
+  inputBar: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
   iconBtn: { padding: 8 },
-  textInput: { flex: 1, backgroundColor: '#F3F4F6', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, marginHorizontal: 4, fontSize: 16, color: '#111827', maxHeight: 112 },
+  textInput: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginHorizontal: 4,
+    fontSize: 16,
+    color: '#111827',
+    maxHeight: 112,
+  },
   sendBtn: { padding: 8, borderRadius: 9999 },
   sendActive: { backgroundColor: '#6366F1' },
   sendInactive: { backgroundColor: '#E5E7EB' },
-  dateSep: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 10 },
+  dateSep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+  },
   dateSepLine: { flex: 1, height: 0.5, backgroundColor: '#E5E7EB' },
   dateSepText: { fontSize: 12, color: '#9CA3AF', paddingHorizontal: 10, fontWeight: '500' },
 });

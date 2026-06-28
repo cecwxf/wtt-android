@@ -119,7 +119,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     set({ isLoading: true, error: null, _lastToken: token, _lastAgentId: agentId });
     try {
       const res = await fetch(
-        `${WTT_API_URL}/api/tasks?owner_agent_id=${encodeURIComponent(agentId)}&limit=500`,
+        `${WTT_API_URL}/tasks?owner_agent_id=${encodeURIComponent(agentId)}&limit=500`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
       if (res.ok) {
@@ -145,7 +145,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   createTask: async (token, data) => {
     set({ error: null });
     try {
-      const res = await fetch(`${WTT_API_URL}/api/tasks`, {
+      const res = await fetch(`${WTT_API_URL}/tasks`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -170,7 +170,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   updateTaskStatus: async (token, taskId, status) => {
     set({ error: null });
     try {
-      const res = await fetch(`${WTT_API_URL}/api/tasks/${taskId}`, {
+      const res = await fetch(`${WTT_API_URL}/tasks/${taskId}`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -195,7 +195,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       const params = new URLSearchParams();
       if (actingAgentId) params.set('acting_as_agent_id', actingAgentId);
       params.set('delete_topic', 'true');
-      const url = `${WTT_API_URL}/api/tasks/${taskId}?${params.toString()}`;
+      const url = `${WTT_API_URL}/tasks/${taskId}?${params.toString()}`;
       const res = await fetch(url, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
@@ -214,7 +214,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   runTask: async (token, task, actorId) => {
     set({ error: null });
     try {
-      const res = await fetch(`${WTT_API_URL}/api/tasks/${task.id}/run`, {
+      const res = await fetch(`${WTT_API_URL}/tasks/${task.id}/run`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -240,7 +240,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
   reviewTask: async (token, taskId, action, reviewer) => {
     set({ error: null });
     try {
-      const res = await fetch(`${WTT_API_URL}/api/tasks/${taskId}/review`, {
+      const res = await fetch(`${WTT_API_URL}/tasks/${taskId}/review`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -290,7 +290,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
     try {
       const query = new URLSearchParams({ limit: '200' });
       if (agentId) query.set('agent_id', agentId);
-      const res = await fetch(`${WTT_API_URL}/api/topics/${topicId}/messages?${query.toString()}`, {
+      const res = await fetch(`${WTT_API_URL}/topics/${topicId}/messages?${query.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -316,7 +316,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
     const autoRun = task.status === 'todo';
     const sendByTaskLane = async () => {
-      const resp = await fetch(`${WTT_API_URL}/api/tasks/${task.id}/chat/send`, {
+      const resp = await fetch(`${WTT_API_URL}/tasks/${task.id}/chat/send`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -359,7 +359,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
         }
       }
 
-      const url = `${WTT_API_URL}/api/topics/${task.topic_id}/messages?agent_id=${encodeURIComponent(senderId)}`;
+      const url = `${WTT_API_URL}/topics/${task.topic_id}/messages?agent_id=${encodeURIComponent(senderId)}`;
       const resp = await fetch(url, {
         method: 'POST',
         headers: {
