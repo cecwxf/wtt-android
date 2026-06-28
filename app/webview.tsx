@@ -346,6 +346,12 @@ function mapNativePathToWebUrl(
       agent_id: agentId,
     });
   }
+  if (route === 'chat') {
+    return appendMobileParams(webBaseUrl, '/mobile/feed', {
+      topic_id: parts[1] || routeParam(params, 'id') || routeParam(params, 'topic_id'),
+      agent_id: agentId,
+    });
+  }
   if (route === 'task') {
     return appendMobileParams(webBaseUrl, '/mobile/feed', {
       task_id: parts[1] || routeParam(params, 'id') || routeParam(params, 'task_id'),
@@ -395,6 +401,12 @@ function mapDeepLinkToWebUrl(rawUrl: string | null, webBaseUrl: string): string 
         agent_id: agentId,
       });
     }
+    if (route === 'chat') {
+      return appendMobileParams(webBaseUrl, '/mobile/feed', {
+        topic_id: id || parsed.searchParams.get('topic_id') || undefined,
+        agent_id: agentId,
+      });
+    }
     if (route === 'task') {
       return appendMobileParams(webBaseUrl, '/mobile/feed', {
         task_id: id || parsed.searchParams.get('task_id') || undefined,
@@ -437,6 +449,7 @@ export default function WttWebViewScreen() {
   );
   const mobileFeedUrl = `${webBaseUrl}/mobile/feed?source=android`;
   const [targetUrl, setTargetUrl] = useState(mobileFeedUrl);
+  const targetUrlRef = useRef(mobileFeedUrl);
   const currentUrlRef = useRef(mobileFeedUrl);
   const allowedHost = useMemo(() => {
     try {
@@ -453,6 +466,16 @@ export default function WttWebViewScreen() {
     () => mapNativePathToWebUrl(pathname, routeParams, webBaseUrl),
     [pathname, routeParams, webBaseUrl],
   );
+
+  const navigateToTargetUrl = useCallback((nextUrl: string) => {
+    if (!nextUrl || targetUrlRef.current === nextUrl) return false;
+    targetUrlRef.current = nextUrl;
+    setError('');
+    setLoading(true);
+    setTargetUrl(nextUrl);
+    setReloadKey((value) => value + 1);
+    return true;
+  }, []);
 
   useEffect(() => {
     if (!loading || error) return undefined;
@@ -496,13 +519,9 @@ export default function WttWebViewScreen() {
     (url: string | null) => {
       const mapped = mapDeepLinkToWebUrl(url, webBaseUrl);
       if (!mapped) return false;
-      setError('');
-      setLoading(true);
-      setTargetUrl(mapped);
-      setReloadKey((value) => value + 1);
-      return true;
+      return navigateToTargetUrl(mapped);
     },
-    [webBaseUrl],
+    [navigateToTargetUrl, webBaseUrl],
   );
 
   const openExternalUrl = useCallback((url: string) => {
@@ -539,16 +558,13 @@ export default function WttWebViewScreen() {
           webViewRef.current?.clearCache?.(true);
           webViewRef.current?.clearHistory?.();
           setCanGoBack(false);
-          setError('');
-          setLoading(true);
-          setTargetUrl(
+          navigateToTargetUrl(
             `${webBaseUrl}/mobile/login?callbackUrl=${encodeURIComponent('/mobile/feed')}&source=android&reset=${Date.now()}`,
           );
-          setReloadKey((value) => value + 1);
         },
       },
     ]);
-  }, [webBaseUrl]);
+  }, [navigateToTargetUrl, webBaseUrl]);
 
   useEffect(() => {
     let mounted = true;
@@ -566,11 +582,8 @@ export default function WttWebViewScreen() {
 
   useEffect(() => {
     if (!nativeRouteUrl) return;
-    setError('');
-    setLoading(true);
-    setTargetUrl(nativeRouteUrl);
-    setReloadKey((value) => value + 1);
-  }, [nativeRouteUrl]);
+    navigateToTargetUrl(nativeRouteUrl);
+  }, [nativeRouteUrl, navigateToTargetUrl]);
 
   const shouldStartLoad = useCallback(
     (request: TopFrameNavigation) => {
@@ -589,11 +602,7 @@ export default function WttWebViewScreen() {
           }
           const mobileUrl = mobileUrlForAllowedHostNavigation(url, webBaseUrl);
           if (!mobileUrl || mobileUrl === url) return true;
-          setError('');
-          setLoading(true);
-          setTargetUrl(mobileUrl);
-          setReloadKey((value) => value + 1);
-          return false;
+          return !navigateToTargetUrl(mobileUrl);
         }
         if (isAuthProviderUrl(url)) return true;
         if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
@@ -741,7 +750,7 @@ export default function WttWebViewScreen() {
           setCanGoBack(state.canGoBack && !isMobileLoginUrl(state.url));
         }}
         onShouldStartLoadWithRequest={shouldStartLoad}
-        applicationNameForUserAgent="WTT-Android-WebView/1.2.10"
+        applicationNameForUserAgent="WTT-Android-WebView/1.2.13"
       />
       {error ? (
         <View style={styles.errorCard}>
