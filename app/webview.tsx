@@ -270,6 +270,9 @@ function nativeSessionBridgeScript(token?: string | null, allowedHost?: string):
       var token = ${JSON.stringify(cleanToken)};
       var storageKey = '__WTT_NATIVE_SESSION_BRIDGED__:' + token.slice(-12);
       try {
+        localStorage.setItem('__WTT_NATIVE_ACCESS_TOKEN__', token);
+      } catch (error) {}
+      try {
         if (sessionStorage.getItem(storageKey) === '1') return true;
         sessionStorage.setItem(storageKey, '1');
       } catch (error) {}
