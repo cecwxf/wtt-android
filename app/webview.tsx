@@ -24,6 +24,7 @@ import {
   type WebViewNavigation,
 } from 'react-native-webview';
 import type { WebViewErrorEvent } from 'react-native-webview/lib/WebViewTypes';
+import { useAuthStore } from '@/stores/auth';
 
 const DEFAULT_WEB_URL = 'https://www.ultraspace.ai';
 const ANDROID_RESET_SESSION_MESSAGE = 'WTT_ANDROID_RESET_SESSION';
@@ -257,6 +258,36 @@ function authenticatedDownloadScript(url: string): string {
   `;
 }
 
+function nativeSessionBridgeScript(token?: string | null, allowedHost?: string): string {
+  const cleanToken = String(token || '').trim();
+  if (!cleanToken) return PREVENT_INITIAL_AUTOFOCUS_SCRIPT;
+  return `
+    ${PREVENT_INITIAL_AUTOFOCUS_SCRIPT}
+    (function() {
+      var expectedHost = ${JSON.stringify(allowedHost || '')};
+      if (expectedHost && location.hostname.toLowerCase() !== expectedHost) return true;
+      if (location.pathname.indexOf('/api/') === 0) return true;
+      var token = ${JSON.stringify(cleanToken)};
+      var storageKey = '__WTT_NATIVE_SESSION_BRIDGED__:' + token.slice(-12);
+      try {
+        if (sessionStorage.getItem(storageKey) === '1') return true;
+        sessionStorage.setItem(storageKey, '1');
+      } catch (error) {}
+      fetch('/api/mobile/native-session', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Authorization: 'Bearer ' + token }
+      }).then(function(response) {
+        if (response && response.ok) {
+          window.location.replace(window.location.href);
+        }
+      }).catch(function() {});
+      return true;
+    })();
+    true;
+  `;
+}
+
 function formatBytes(value?: number | null): string {
   const bytes = Number(value || 0);
   if (!Number.isFinite(bytes) || bytes <= 0) return '';
@@ -382,6 +413,7 @@ function mapDeepLinkToWebUrl(rawUrl: string | null, webBaseUrl: string): string 
 
 export default function WttWebViewScreen() {
   const webViewRef = useRef<WebView>(null);
+  const nativeToken = useAuthStore((s) => s.token);
   const pathname = usePathname();
   const routeParams = useLocalSearchParams() as RouteParams;
   const [canGoBack, setCanGoBack] = useState(false);
@@ -410,6 +442,10 @@ export default function WttWebViewScreen() {
       return '';
     }
   }, [webBaseUrl]);
+  const injectedScript = useMemo(
+    () => nativeSessionBridgeScript(nativeToken, allowedHost),
+    [allowedHost, nativeToken],
+  );
   const nativeRouteUrl = useMemo(
     () => mapNativePathToWebUrl(pathname, routeParams, webBaseUrl),
     [pathname, routeParams, webBaseUrl],
@@ -647,7 +683,7 @@ export default function WttWebViewScreen() {
         domStorageEnabled
         geolocationEnabled
         javaScriptEnabled
-        injectedJavaScriptBeforeContentLoaded={PREVENT_INITIAL_AUTOFOCUS_SCRIPT}
+        injectedJavaScriptBeforeContentLoaded={injectedScript}
         mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"
         mediaPlaybackRequiresUserAction={false}
         saveFormDataDisabled
