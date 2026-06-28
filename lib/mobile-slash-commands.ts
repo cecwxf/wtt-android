@@ -12,6 +12,7 @@ export function useMobileSlashCommands(
   adapter?: string | null,
 ) {
   const [dynamicCommands, setDynamicCommands] = useState<MobileSlashCommand[]>([]);
+  const [runtimeAdapter, setRuntimeAdapter] = useState('');
 
   useEffect(() => {
     if (!token || !agentId) {
@@ -48,8 +49,50 @@ export function useMobileSlashCommands(
     return () => controller.abort();
   }, [adapter, agentId, token]);
 
+  useEffect(() => {
+    if (adapter) {
+      setRuntimeAdapter('');
+      return;
+    }
+    if (!token || !agentId) {
+      setRuntimeAdapter('');
+      return;
+    }
+    const controller = new AbortController();
+    async function loadAdapter() {
+      try {
+        const statsPromise = fetch(`${WTT_API_URL}/agents/stats`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        })
+          .then((response) => (response.ok ? response.json() : null))
+          .catch(() => null);
+        const cloudPromise = fetch(`${WTT_API_URL}/cloud-agents/me?live=false`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        })
+          .then((response) => (response.ok ? response.json() : null))
+          .catch(() => null);
+        const [stats, cloud] = await Promise.all([statsPromise, cloudPromise]);
+        const runtime = stats?.runtimes?.[agentId || ''];
+        const runtimeValue = String(
+          runtime?.adapter || runtime?.agent_type || runtime?.agentType || '',
+        ).trim();
+        const cloudValue =
+          String(cloud?.agent_id || '') === String(agentId || '')
+            ? String(cloud?.agent_type || cloud?.adapter || '').trim()
+            : '';
+        if (!controller.signal.aborted) setRuntimeAdapter(runtimeValue || cloudValue);
+      } catch {
+        if (!controller.signal.aborted) setRuntimeAdapter('');
+      }
+    }
+    void loadAdapter();
+    return () => controller.abort();
+  }, [adapter, agentId, token]);
+
   return useMemo(
-    () => mobileSlashCommandsForAdapter(adapter, dynamicCommands),
-    [adapter, dynamicCommands],
+    () => mobileSlashCommandsForAdapter(adapter || runtimeAdapter, dynamicCommands),
+    [adapter, dynamicCommands, runtimeAdapter],
   );
 }
