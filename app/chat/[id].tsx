@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   buildContentWithAttachments,
   MobileChatSurface,
+  mobileSlashMetadata,
 } from '@wtt/mobile-chat-kit';
 import {
   MOBILE_ATTACHMENT_DOCUMENT_TYPES,
@@ -34,6 +35,7 @@ import {
   type LocalUploadAsset,
   type PendingUploadAsset,
 } from '@/lib/mobile-attachments';
+import { useMobileSlashCommands } from '@/lib/mobile-slash-commands';
 
 export default function ChatScreen() {
   const { id: topicId, name: topicName } = useLocalSearchParams<{ id: string; name?: string }>();
@@ -58,6 +60,7 @@ export default function ChatScreen() {
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const slashCommands = useMobileSlashCommands(token, agentId, null);
 
   useEffect(() => {
     if (token && topicId) {
@@ -83,13 +86,15 @@ export default function ChatScreen() {
     setPendingAssets([]);
     setSending(true);
     try {
-      await sendMessage(token, topicId, content, agentId);
+      await sendMessage(token, topicId, content, agentId, {
+        slash: mobileSlashMetadata(text, slashCommands),
+      });
       haptic.light();
     } catch {
       /* ignore */
     }
     setSending(false);
-  }, [agentId, pendingAssets, sendMessage, sending, text, token, topicId, uploading]);
+  }, [agentId, pendingAssets, sendMessage, sending, slashCommands, text, token, topicId, uploading]);
 
   const uploadAttachment = useCallback(
     async (asset: LocalUploadAsset) => {
@@ -292,6 +297,8 @@ export default function ChatScreen() {
         emptyTitle="No messages yet"
         emptyText="Start the conversation from here."
         placeholder="Type a message..."
+        slashCommands={slashCommands}
+        onSlashCommandPress={(command) => setText(`${command.cmd} `)}
         theme={{ accent: '#6366F1', accentSoft: '#EEF2FF', accentBorder: '#C7D2FE' }}
         formatTime={formatTime}
         composerTopContent={

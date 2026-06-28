@@ -1,4 +1,13 @@
 import { mergeMobileHistory } from './history';
+import {
+  mobileSlashMetadataPayload,
+  type MobileSlashSendOptions,
+} from './slash-commands';
+
+export type MobileSendMessageOptions = {
+  metadata?: Record<string, unknown>;
+  slash?: MobileSlashSendOptions;
+};
 
 export type MobileTopicMessage = {
   message_id: string;
@@ -18,7 +27,13 @@ export type MobileMessagesState<TMessage extends MobileTopicMessage = MobileTopi
   isLoading: boolean;
   fetchMessages: (token: string, topicId: string) => Promise<void>;
   addMessage: (topicId: string, message: TMessage) => void;
-  sendMessage: (token: string, topicId: string, content: string, agentId: string) => Promise<void>;
+  sendMessage: (
+    token: string,
+    topicId: string,
+    content: string,
+    agentId: string,
+    options?: MobileSendMessageOptions,
+  ) => Promise<void>;
   clearTopic: (topicId: string) => void;
 };
 
@@ -37,7 +52,11 @@ export type MobileMessagesStoreDeps<TMessage extends MobileTopicMessage = Mobile
   preferWsPublish?: boolean;
   restHistoryPath?: (topicId: string, limit: number) => string;
   restPublishPath?: (topicId: string, agentId: string) => string;
-  restPublishPayload?: (content: string, agentId: string) => Record<string, unknown>;
+  restPublishPayload?: (
+    content: string,
+    agentId: string,
+    options?: MobileSendMessageOptions,
+  ) => Record<string, unknown>;
   onIncomingMessage?: (message: TMessage) => void;
 };
 
@@ -86,12 +105,17 @@ export function mobileTopicPublishPath(topicId: string, agentId: string) {
   return `/topics/${encodeURIComponent(topicId)}/messages?agent_id=${encodeURIComponent(agentId)}`;
 }
 
-export function mobileHumanTopicPublishPayload(content: string) {
+export function mobileHumanTopicPublishPayload(content: string, options?: MobileSendMessageOptions) {
+  const metadata = {
+    ...(options?.metadata || {}),
+    ...(mobileSlashMetadataPayload(options?.slash) || {}),
+  };
   return {
     content,
     content_type: 'text',
     semantic_type: 'post',
     sender_type: 'HUMAN',
+    ...(Object.keys(metadata).length ? { metadata } : {}),
   };
 }
 
@@ -210,7 +234,17 @@ export function createMobileMessagesStoreInitializer<
       if (added) deps.onIncomingMessage?.(message);
     },
 
-    sendMessage: async (token: string, topicId: string, content: string, agentId: string) => {
+    sendMessage: async (
+      token: string,
+      topicId: string,
+      content: string,
+      agentId: string,
+      options?: MobileSendMessageOptions,
+    ) => {
+      const metadata = {
+        ...(options?.metadata || {}),
+        ...(mobileSlashMetadataPayload(options?.slash) || {}),
+      };
       if (deps.preferWsPublish) {
         try {
           const ws = deps.getWebSocket?.();
@@ -220,6 +254,7 @@ export function createMobileMessagesStoreInitializer<
               content,
               content_type: 'text',
               semantic_type: 'post',
+              ...(Object.keys(metadata).length ? { metadata } : {}),
             });
             if (wsResult !== null) {
               get().addMessage(
@@ -240,7 +275,7 @@ export function createMobileMessagesStoreInitializer<
       const res = await fetch(`${deps.baseUrl}${restPublishPath(topicId, agentId)}`, {
         method: 'POST',
         headers: authHeaders(token),
-        body: JSON.stringify(restPublishPayload(content, agentId)),
+        body: JSON.stringify(restPublishPayload(content, agentId, options)),
       });
       if (!res.ok) throw new Error('Failed to send message');
       get().addMessage(topicId, normalizeMobileTopicMessage<TMessage>(topicId, await res.json()));

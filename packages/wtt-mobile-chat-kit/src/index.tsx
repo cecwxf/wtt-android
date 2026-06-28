@@ -18,9 +18,24 @@ import {
   type MessageAttachment,
   type MessageAttachmentKind,
 } from './message-attachments';
+import {
+  filterMobileSlashCommands,
+  type MobileSlashCommand,
+} from './slash-commands';
 
 export { parseMessageContent, type MessageAttachment, type MessageAttachmentKind };
 export { mergeMobileHistory, type MobileHistoryMessage } from './history';
+export {
+  filterMobileSlashCommands,
+  findMobileSlashCommand,
+  mobileSlashCommandsForAdapter,
+  mobileSlashMetadata,
+  mobileSlashMetadataPayload,
+  normalizeMobileSlashCommand,
+  type MobileSlashCommand,
+  type MobileSlashCommandFamily,
+  type MobileSlashSendOptions,
+} from './slash-commands';
 
 export type MobileChatMessage = {
   id: string;
@@ -491,6 +506,9 @@ export type MobileChatSurfaceProps = {
   bottomActions?: any;
   composerTopContent?: any;
   composerExtraLeftActions?: any;
+  slashCommands?: MobileSlashCommand[];
+  slashHintLabel?: string;
+  onSlashCommandPress?: (command: MobileSlashCommand) => void;
   error?: string;
 };
 
@@ -529,10 +547,14 @@ export function MobileChatSurface({
   bottomActions,
   composerTopContent,
   composerExtraLeftActions,
+  slashCommands = [],
+  slashHintLabel = 'Slash commands',
+  onSlashCommandPress,
   error,
 }: MobileChatSurfaceProps) {
   let scrollView: ScrollView | null = null;
   const canSend = Boolean(input.trim() || pendingAttachments.length > 0);
+  const filteredSlashCommands = filterMobileSlashCommands(input, slashCommands);
 
   return (
     <KeyboardAvoidingView
@@ -590,6 +612,20 @@ export function MobileChatSurface({
       {bottomActions}
 
       {composerTopContent}
+      <MobileSlashCommandSuggestions
+        commands={filteredSlashCommands}
+        label={slashHintLabel}
+        theme={theme}
+        surfaceColor={surfaceColor}
+        borderColor={borderColor}
+        onPress={(command) => {
+          if (onSlashCommandPress) {
+            onSlashCommandPress(command);
+            return;
+          }
+          onInputChange(`${command.cmd} `);
+        }}
+      />
 
       {pendingAttachments.length > 0 || uploading || uploadError ? (
         <View
@@ -670,6 +706,54 @@ export function MobileChatSurface({
   );
 }
 
+export function MobileSlashCommandSuggestions({
+  commands,
+  label = 'Slash commands',
+  onPress,
+  theme,
+  surfaceColor = '#FFFFFF',
+  borderColor = '#E2E8F0',
+}: {
+  commands: MobileSlashCommand[];
+  label?: string;
+  onPress: (command: MobileSlashCommand) => void;
+  theme?: MobileChatTheme;
+  surfaceColor?: string;
+  borderColor?: string;
+}) {
+  if (!commands.length) return null;
+  const t = mergedTheme(theme);
+  return (
+    <View style={[surfaceStyles.slashPanel, { backgroundColor: surfaceColor, borderColor }]}>
+      <View style={surfaceStyles.slashHeader}>
+        <Ionicons name="terminal-outline" size={14} color={t.accent} />
+        <Text style={[surfaceStyles.slashHeaderText, { color: t.textMuted }]}>{label}</Text>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={surfaceStyles.slashList}
+        keyboardShouldPersistTaps="handled"
+      >
+        {commands.map((command) => (
+          <TouchableOpacity
+            key={`${command.cmd}:${command.skillId || command.family || ''}`}
+            style={[surfaceStyles.slashChip, { backgroundColor: t.accentSoft, borderColor: t.accentBorder }]}
+            onPress={() => onPress(command)}
+          >
+            <Text style={[surfaceStyles.slashCmd, { color: t.accent }]} numberOfLines={1}>
+              {command.cmd}
+            </Text>
+            <Text style={[surfaceStyles.slashDesc, { color: t.textMuted }]} numberOfLines={1}>
+              {command.desc}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
 const surfaceStyles = StyleSheet.create({
   root: { flex: 1 },
   messages: { flex: 1 },
@@ -691,6 +775,28 @@ const surfaceStyles = StyleSheet.create({
     paddingTop: 8,
     borderTopWidth: 1,
   },
+  slashPanel: {
+    borderTopWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  slashHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  slashHeaderText: { fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
+  slashList: { gap: 8, paddingRight: 12 },
+  slashChip: {
+    width: 180,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  slashCmd: { fontSize: 13, fontWeight: '900' },
+  slashDesc: { marginTop: 2, fontSize: 11, fontWeight: '700' },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
