@@ -11,7 +11,12 @@ module.exports = ({ config }) => {
   return {
     ...base,
     ...config,
-    name: isChina ? 'WTT智能助手' : base.name,
+    name: isChina ? '我它它' : base.name,
+    plugins: [
+      ...((base.plugins || [])),
+      ...((config?.plugins || [])),
+      './plugins/withLocalizedAppName',
+    ],
     ios: {
       ...(base.ios || {}),
       ...(config?.ios || {}),
