@@ -83,6 +83,7 @@ export default function ProfileScreen() {
   const selectedAgentId = useAgentsStore((s) => s.selectedAgentId);
   const selectAgent = useAgentsStore((s) => s.selectAgent);
   const wsState = useWebSocketStore((s) => s.wsState);
+  const initializeWs = useWebSocketStore((s) => s.initialize);
   const themeMode = useThemeStore((s) => s.mode);
   const setTheme = useThemeStore((s) => s.setMode);
   const locale = useI18nStore((s) => s.locale);
@@ -100,6 +101,15 @@ export default function ProfileScreen() {
   const setAgentAlert = useAppSettingsStore((s) => s.setAgentAlert);
   const setSoundOn = useAppSettingsStore((s) => s.setSoundOn);
   const setFallbackPollSeconds = useAppSettingsStore((s) => s.setFallbackPollSeconds);
+  const realtimeAgentId = selectedAgentId || agents[0]?.agent_id || '';
+
+  useEffect(() => {
+    if (!token || !realtimeAgentId) return;
+    initializeWs(
+      `${WS_BASE_URL}/ws/${encodeURIComponent(realtimeAgentId)}?client=android-profile-mobile`,
+      token,
+    );
+  }, [initializeWs, realtimeAgentId, token]);
 
   const handleLogout = async () => {
     Alert.alert(t.auth.signOut, 'Are you sure you want to sign out?', [
@@ -203,6 +213,23 @@ export default function ProfileScreen() {
         : 'Upgrade required';
   const primaryName = userPrimaryName(user);
   const secondaryLine = userSecondaryLine(user);
+  const accountStatusLabel = user
+    ? locale === 'zh'
+      ? '账号已登录'
+      : 'Signed in'
+    : locale === 'zh'
+      ? '未登录'
+      : 'Not signed in';
+  const realtimeStatusLabel =
+    !realtimeAgentId
+      ? locale === 'zh'
+        ? '等待 Agent'
+        : 'Waiting for Agent'
+      : wsState === 'connected'
+      ? 'Connected'
+      : wsState === 'connecting'
+        ? 'Connecting...'
+        : 'Disconnected';
 
   return (
     <ScrollView className="flex-1 bg-gray-50" style={styles.root}>
@@ -227,21 +254,11 @@ export default function ProfileScreen() {
         </Text>
         <View className="flex-row items-center mt-2" style={styles.statusRow}>
           <View
-            className={`w-2 h-2 rounded-full mr-1.5 ${
-              wsState === 'connected'
-                ? 'bg-green-500'
-                : wsState === 'connecting'
-                  ? 'bg-yellow-500'
-                  : 'bg-gray-300'
-            }`}
-            style={[styles.statusDot, { backgroundColor: wsColor }]}
+            className={`w-2 h-2 rounded-full mr-1.5 ${user ? 'bg-green-500' : 'bg-gray-300'}`}
+            style={[styles.statusDot, { backgroundColor: user ? '#22C55E' : '#D1D5DB' }]}
           />
           <Text className="text-xs text-gray-400" style={styles.statusText}>
-            {wsState === 'connected'
-              ? 'Connected'
-              : wsState === 'connecting'
-                ? 'Connecting...'
-                : 'Disconnected'}
+            {accountStatusLabel}
           </Text>
         </View>
       </View>
@@ -513,6 +530,7 @@ export default function ProfileScreen() {
 
           <View className="px-4 py-3" style={styles.apiBlock}>
             <Text style={styles.apiTitle}>API / WS</Text>
+            <Text style={[styles.apiLine, { color: wsColor }]}>Realtime: {realtimeStatusLabel}</Text>
             <Text style={styles.apiLine}>API: {WTT_API_URL}</Text>
             <Text style={styles.apiLine}>WS: {WS_BASE_URL}</Text>
           </View>
