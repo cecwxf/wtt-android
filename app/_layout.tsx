@@ -8,6 +8,8 @@ import * as SystemUI from 'expo-system-ui';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useI18nStore } from '@/stores/i18n';
 import { useThemeStore } from '@/stores/theme';
+import { useAuthStore } from '@/stores/auth';
+import { useAgentsStore } from '@/stores/agents';
 import '../global.css';
 
 SplashScreen.preventAutoHideAsync();
@@ -20,6 +22,8 @@ export default function RootLayout() {
   const [prefsReady, setPrefsReady] = useState(false);
   const loadLocale = useI18nStore((s) => s.loadLocale);
   const loadTheme = useThemeStore((s) => s.loadMode);
+  const loadToken = useAuthStore((s) => s.loadToken);
+  const loadSelectedAgent = useAgentsStore((s) => s.loadSelectedAgent);
   const resolvedTheme = useThemeStore((s) => s.resolved);
 
   const [fontsLoaded, fontError] = useFonts({
@@ -31,7 +35,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([loadLocale(), loadTheme()])
+    Promise.all([loadLocale(), loadTheme(), loadToken(), loadSelectedAgent()])
       .catch(() => {})
       .finally(() => {
         if (!cancelled) setPrefsReady(true);
@@ -39,7 +43,7 @@ export default function RootLayout() {
     return () => {
       cancelled = true;
     };
-  }, [loadLocale, loadTheme]);
+  }, [loadLocale, loadSelectedAgent, loadTheme, loadToken]);
 
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(resolvedTheme === 'dark' ? '#0B1220' : '#F7F8FB');
