@@ -26,6 +26,15 @@ import {
 export { parseMessageContent, type MessageAttachment, type MessageAttachmentKind };
 export { mergeMobileHistory, type MobileHistoryMessage } from './history';
 export {
+  filterVisibleMobileMessages,
+  isMobileMessageHidden,
+  isMobileProgressMessage,
+  mobileMessageMetadataObject,
+  stripMobileMetaBlocks,
+  visibleMobileMessageContent,
+  type MobileVisibleMessage,
+} from './message-visibility';
+export {
   filterMobileSlashCommands,
   findMobileSlashCommand,
   mobileSlashCommandsForAdapter,

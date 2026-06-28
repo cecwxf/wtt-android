@@ -20,6 +20,10 @@ export type MobileTopicMessage = {
   content: string;
   timestamp: string;
   reply_to?: string;
+  metadata?: Record<string, unknown> | string | null;
+  is_streaming?: boolean;
+  stream_id?: string;
+  task_status?: string;
 };
 
 export type MobileMessagesState<TMessage extends MobileTopicMessage = MobileTopicMessage> = {
@@ -83,6 +87,10 @@ export function normalizeMobileTopicMessage<TMessage extends MobileTopicMessage 
     content: String(raw.content || ''),
     timestamp: String(raw.timestamp || raw.created_at || new Date().toISOString()),
     reply_to: raw.reply_to ? String(raw.reply_to) : undefined,
+    metadata: (raw.metadata as Record<string, unknown> | string | null | undefined) || null,
+    is_streaming: raw.is_streaming === true || raw.is_streaming === 'true',
+    stream_id: raw.stream_id ? String(raw.stream_id) : undefined,
+    task_status: raw.task_status ? String(raw.task_status) : undefined,
   } as TMessage;
 }
 

@@ -8,6 +8,7 @@
     ".": "./src/index.tsx",
     "./history": "./src/history.ts",
     "./messages": "./src/messages.ts",
+    "./message-visibility": "./src/message-visibility.ts",
     "./message-attachments": "./src/message-attachments.ts",
     "./upload": "./src/upload.ts",
     "./run-status": "./src/run-status.ts",

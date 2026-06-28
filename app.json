@@ -2,7 +2,7 @@
   "expo": {
     "name": "WTT",
     "slug": "wtt-mobile",
-    "version": "1.2.9",
+    "version": "1.2.10",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "wtt",
@@ -33,7 +33,7 @@
         "backgroundColor": "#1D4ED8"
       },
       "package": "com.waxbyte.wtt",
-      "versionCode": 21
+      "versionCode": 22
     },
     "web": {
       "bundler": "metro",

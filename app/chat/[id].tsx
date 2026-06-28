@@ -12,6 +12,7 @@ import { useLocalSearchParams, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
   buildContentWithAttachments,
+  filterVisibleMobileMessages,
   MobileChatSurface,
   mobileSlashMetadata,
 } from '@wtt/mobile-chat-kit';
@@ -47,6 +48,7 @@ export default function ChatScreen() {
   const isLoading = useMessagesStore((s) => s.isLoading);
   const wsState = useWebSocketStore((s) => s.wsState);
   const fallbackPollSeconds = useAppSettingsStore((s) => s.fallbackPollSeconds);
+  const visibleMessages = useMemo(() => filterVisibleMobileMessages(messages), [messages]);
 
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -276,7 +278,7 @@ export default function ChatScreen() {
     <>
       <Stack.Screen options={{ title: headerTitle, headerShown: true }} />
       <MobileChatSurface
-        messages={messages.map((item) => ({
+        messages={visibleMessages.map((item) => ({
           id: item.message_id,
           senderId: item.sender_id,
           senderType: item.sender_type,

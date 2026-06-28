@@ -702,7 +702,7 @@ export default function WttWebViewScreen() {
           setCanGoBack(state.canGoBack && !isMobileLoginUrl(state.url));
         }}
         onShouldStartLoadWithRequest={shouldStartLoad}
-        applicationNameForUserAgent="WTT-Android-WebView/1.2.3"
+        applicationNameForUserAgent="WTT-Android-WebView/1.2.10"
       />
       {error ? (
         <View style={styles.errorCard}>
