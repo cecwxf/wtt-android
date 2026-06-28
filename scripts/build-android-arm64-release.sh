@@ -9,6 +9,9 @@ if [[ ! -f "$ANDROID_DIR/app/build.gradle" ]]; then
   exit 1
 fi
 
+node "$ROOT_DIR/scripts/sync-android-version.mjs"
+node "$ROOT_DIR/scripts/sync-android-assets.mjs"
+
 cd "$ANDROID_DIR"
 ./gradlew :app:clean :app:assembleRelease -PreactNativeArchitectures=arm64-v8a
 
