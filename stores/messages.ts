@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   createMobileMessagesStoreInitializer,
   mobileHumanTopicPublishPayload,
+  mobileTopicHistoryPath,
   mobileTopicPublishPath,
   type MobileMessagesState,
 } from '@wtt/mobile-chat-kit/messages';
@@ -14,7 +15,9 @@ export const useMessagesStore = create<MobileMessagesState<Message>>(
     baseUrl: WTT_API_URL,
     preferWsPublish: true,
     getWebSocket: () => useWebSocketStore.getState(),
+    restHistoryPath: mobileTopicHistoryPath,
     restPublishPath: mobileTopicPublishPath,
-    restPublishPayload: (content, _agentId, options) => mobileHumanTopicPublishPayload(content, options),
+    restPublishPayload: (content, _agentId, options) =>
+      mobileHumanTopicPublishPayload(content, options),
   }),
 );

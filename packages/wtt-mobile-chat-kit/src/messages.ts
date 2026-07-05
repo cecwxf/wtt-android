@@ -1,8 +1,5 @@
 import { mergeMobileHistory } from './history';
-import {
-  mobileSlashMetadataPayload,
-  type MobileSlashSendOptions,
-} from './slash-commands';
+import { mobileSlashMetadataPayload, type MobileSlashSendOptions } from './slash-commands';
 
 export type MobileSendMessageOptions = {
   metadata?: Record<string, unknown>;
@@ -43,10 +40,7 @@ export type MobileMessagesState<TMessage extends MobileTopicMessage = MobileTopi
 
 export type MobileWebSocketBridge = {
   wsState?: string;
-  sendAction?: <T = unknown>(
-    action: any,
-    payload?: Record<string, unknown>,
-  ) => Promise<T | null>;
+  sendAction?: <T = unknown>(action: any, payload?: Record<string, unknown>) => Promise<T | null>;
 };
 
 export type MobileMessagesStoreDeps<TMessage extends MobileTopicMessage = MobileTopicMessage> = {
@@ -72,10 +66,9 @@ type StoreSet<TMessage extends MobileTopicMessage> = (
 
 type StoreGet<TMessage extends MobileTopicMessage> = () => MobileMessagesState<TMessage>;
 
-export function normalizeMobileTopicMessage<TMessage extends MobileTopicMessage = MobileTopicMessage>(
-  topicId: string,
-  raw: Record<string, unknown>,
-) {
+export function normalizeMobileTopicMessage<
+  TMessage extends MobileTopicMessage = MobileTopicMessage,
+>(topicId: string, raw: Record<string, unknown>) {
   return {
     message_id: String(raw.message_id || raw.id || ''),
     topic_id: String(raw.topic_id || topicId),
@@ -113,7 +106,10 @@ export function mobileTopicPublishPath(topicId: string, agentId: string) {
   return `/topics/${encodeURIComponent(topicId)}/messages?agent_id=${encodeURIComponent(agentId)}`;
 }
 
-export function mobileHumanTopicPublishPayload(content: string, options?: MobileSendMessageOptions) {
+export function mobileHumanTopicPublishPayload(
+  content: string,
+  options?: MobileSendMessageOptions,
+) {
   const metadata = {
     ...(options?.metadata || {}),
     ...(mobileSlashMetadataPayload(options?.slash) || {}),
@@ -129,6 +125,14 @@ export function mobileHumanTopicPublishPayload(content: string, options?: Mobile
 
 function defaultHistoryPath(topicId: string, limit: number) {
   return `/topics/${encodeURIComponent(topicId)}/messages?limit=${encodeURIComponent(String(limit))}`;
+}
+
+export function mobileTopicHistoryPath(topicId: string, limit: number) {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    include_history: 'true',
+  });
+  return `/topics/${encodeURIComponent(topicId)}/messages?${params.toString()}`;
 }
 
 function legacyPublishPayload(content: string, agentId: string) {
@@ -168,10 +172,7 @@ export function createMobileMessagesStoreInitializer<
     ((topicId: string) => `/topics/${encodeURIComponent(topicId)}/messages`);
   const restPublishPayload = deps.restPublishPayload || legacyPublishPayload;
 
-  return (
-    set: StoreSet<TMessage>,
-    get: StoreGet<TMessage>,
-  ): MobileMessagesState<TMessage> => ({
+  return (set: StoreSet<TMessage>, get: StoreGet<TMessage>): MobileMessagesState<TMessage> => ({
     messagesByTopic: {},
     isLoading: false,
 
@@ -267,10 +268,7 @@ export function createMobileMessagesStoreInitializer<
             if (wsResult !== null) {
               get().addMessage(
                 topicId,
-                normalizeMobileTopicMessage<TMessage>(
-                  topicId,
-                  wsResult as Record<string, unknown>,
-                ),
+                normalizeMobileTopicMessage<TMessage>(topicId, wsResult as Record<string, unknown>),
               );
               return;
             }
