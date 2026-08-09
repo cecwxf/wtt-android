@@ -10,6 +10,11 @@ config.watchFolders = [...(config.watchFolders || []), mobileChatKitRoot];
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
 ];
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // sherpa-onnx targets Expo's newer legacy subpath; Expo 52 exposes that API at the package root.
+  const target = moduleName === 'expo-file-system/legacy' ? 'expo-file-system' : moduleName;
+  return context.resolveRequest(context, target, platform);
+};
 config.resolver.extraNodeModules = {
   ...(config.resolver.extraNodeModules || {}),
   '@wtt/mobile-chat-kit': mobileChatKitRoot,

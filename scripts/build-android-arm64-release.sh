@@ -13,7 +13,9 @@ node "$ROOT_DIR/scripts/sync-android-version.mjs"
 node "$ROOT_DIR/scripts/sync-android-assets.mjs"
 
 cd "$ANDROID_DIR"
-./gradlew :app:clean :app:assembleRelease -PreactNativeArchitectures=arm64-v8a
+./gradlew :app:clean :app:assembleRelease \
+  --init-script "$ROOT_DIR/scripts/android-arm64.init.gradle" \
+  -PreactNativeArchitectures=arm64-v8a
 
 echo "arm64-v8a release APK:"
 ls -lh "$ANDROID_DIR/app/build/outputs/apk/release/app-release.apk"

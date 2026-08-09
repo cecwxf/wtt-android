@@ -24,6 +24,8 @@ import {
   type WebViewNavigation,
 } from 'react-native-webview';
 import type { WebViewErrorEvent } from 'react-native-webview/lib/WebViewTypes';
+import { nativeSpeechCapabilityScript } from '@/lib/speech/protocol';
+import { nativeSpeechEnabled, useNativeSpeechBridge } from '@/lib/speech/use-native-speech-bridge';
 import { useAuthStore } from '@/stores/auth';
 
 const DEFAULT_WEB_URL = 'https://www.ultraspace.ai';
@@ -428,6 +430,7 @@ function mapDeepLinkToWebUrl(rawUrl: string | null, webBaseUrl: string): string 
 
 export default function WttWebViewScreen() {
   const webViewRef = useRef<WebView>(null);
+  const { handleSpeechMessage } = useNativeSpeechBridge(webViewRef);
   const nativeToken = useAuthStore((s) => s.token);
   const pathname = usePathname();
   const routeParams = useLocalSearchParams() as RouteParams;
@@ -459,7 +462,11 @@ export default function WttWebViewScreen() {
     }
   }, [webBaseUrl]);
   const injectedScript = useMemo(
-    () => nativeSessionBridgeScript(nativeToken, allowedHost),
+    () =>
+      `${nativeSessionBridgeScript(nativeToken, allowedHost)}\n${nativeSpeechCapabilityScript(
+        nativeSpeechEnabled,
+        allowedHost,
+      )}`,
     [allowedHost, nativeToken],
   );
   const nativeRouteUrl = useMemo(
@@ -621,6 +628,14 @@ export default function WttWebViewScreen() {
   const handleWebMessage = useCallback(
     (event: WebViewMessageEvent) => {
       const data = event.nativeEvent.data;
+      try {
+        const eventHost = new URL(
+          event.nativeEvent.url || targetUrlRef.current,
+        ).hostname.toLowerCase();
+        if (eventHost === allowedHost && handleSpeechMessage(data)) return;
+      } catch {
+        // Ignore speech commands from malformed or non-WTT origins.
+      }
       if (data === ANDROID_RESET_SESSION_MESSAGE) {
         resetWebSession();
         return;
@@ -651,7 +666,7 @@ export default function WttWebViewScreen() {
         // Ignore unrelated WebView messages.
       }
     },
-    [resetWebSession],
+    [allowedHost, handleSpeechMessage, resetWebSession],
   );
 
   const handleWebError = useCallback((event: WebViewErrorEvent) => {
@@ -750,7 +765,7 @@ export default function WttWebViewScreen() {
           setCanGoBack(state.canGoBack && !isMobileLoginUrl(state.url));
         }}
         onShouldStartLoadWithRequest={shouldStartLoad}
-        applicationNameForUserAgent="WTT-Android-WebView/1.2.13"
+        applicationNameForUserAgent="WTT-Android-WebView/1.2.16"
       />
       {error ? (
         <View style={styles.errorCard}>

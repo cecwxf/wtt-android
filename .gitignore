@@ -7,8 +7,9 @@ dist/
 web-build/
 
 # Native builds
-android/
-ios/
+/android/
+/ios/
+modules/wtt-speech-native/android/build/
 
 # Env files
 .env

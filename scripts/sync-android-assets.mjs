@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,11 +22,57 @@ for (const source of [iconPath, foregroundPath, splashPath]) {
 
 function resize(source, size, output) {
   fs.mkdirSync(path.dirname(output), { recursive: true });
-  execFileSync('sips', ['-z', String(size), String(size), source, '--out', output], { stdio: 'ignore' });
+  const dimensions = `${size}x${size}`;
+  if (resizer === 'sips') {
+    execFileSync('sips', ['-z', String(size), String(size), source, '--out', output], {
+      stdio: 'ignore',
+    });
+  } else if (resizer === 'magick' || resizer === 'convert') {
+    execFileSync(resizer, [source, '-resize', `${dimensions}!`, output], { stdio: 'ignore' });
+  } else {
+    execFileSync(
+      'ffmpeg',
+      [
+        '-y',
+        '-loglevel',
+        'error',
+        '-i',
+        source,
+        '-vf',
+        `scale=${size}:${size}:flags=lanczos`,
+        '-frames:v',
+        '1',
+        output,
+      ],
+      { stdio: 'ignore' },
+    );
+  }
+}
+
+function commandExists(command, args) {
+  return spawnSync(command, args, { stdio: 'ignore' }).status === 0;
+}
+
+const resizer = commandExists('sips', ['--version'])
+  ? 'sips'
+  : commandExists('magick', ['-version'])
+    ? 'magick'
+    : commandExists('convert', ['-version'])
+      ? 'convert'
+      : commandExists('ffmpeg', ['-version'])
+        ? 'ffmpeg'
+        : null;
+
+if (!resizer) {
+  throw new Error('Android asset sync requires sips, ImageMagick, or ffmpeg');
 }
 
 function removeOldWebp(density) {
-  for (const name of ['ic_launcher.webp', 'ic_launcher_round.webp', 'ic_launcher_foreground.webp']) {
+  for (const name of [
+    'ic_launcher.webp',
+    'ic_launcher_round.webp',
+    'ic_launcher_foreground.webp',
+  ]) {
     fs.rmSync(path.join(androidResDir, `mipmap-${density}`, name), { force: true });
   }
 }
@@ -61,11 +107,19 @@ for (const [density, size] of launcherSizes) {
 }
 
 for (const [density, size] of foregroundSizes) {
-  resize(foregroundPath, size, path.join(androidResDir, `mipmap-${density}`, 'ic_launcher_foreground.png'));
+  resize(
+    foregroundPath,
+    size,
+    path.join(androidResDir, `mipmap-${density}`, 'ic_launcher_foreground.png'),
+  );
 }
 
 for (const [density, size] of splashSizes) {
-  resize(splashPath, size, path.join(androidResDir, `drawable-${density}`, 'splashscreen_logo.png'));
+  resize(
+    splashPath,
+    size,
+    path.join(androidResDir, `drawable-${density}`, 'splashscreen_logo.png'),
+  );
 }
 
 console.log('Android native assets synced from Expo assets');
