@@ -174,14 +174,13 @@ export function useNativeSpeechBridge(webViewRef: RefObject<WebViewType | null>)
       if (!asrInitializedRef.current) {
         const result = await SherpaOnnx.ASR.initialize({
           modelDir,
-          modelType: 'zipformer',
+          modelType: 'paraformer',
           streaming: true,
           numThreads: 2,
           decodingMethod: 'greedy_search',
           modelFiles: {
             encoder: 'encoder.onnx',
             decoder: 'decoder.onnx',
-            joiner: 'joiner.onnx',
             tokens: 'tokens.txt',
           },
         });

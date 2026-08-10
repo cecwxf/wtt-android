@@ -19,8 +19,8 @@ export type SpeechModelManifest = {
   tts: SpeechModelDefinition;
 };
 
-const ASR_REVISION = 'e2382758de9a0219b4efe682b95af30b399db3b8';
-const ASR_BASE = `https://huggingface.co/csukuangfj/k2fsa-zipformer-bilingual-zh-en-t/resolve/${ASR_REVISION}`;
+const ASR_REVISION = '8e40c43232a1c5c66c82111efc5820d3accca11b';
+const ASR_BASE = `https://huggingface.co/csukuangfj/sherpa-onnx-streaming-paraformer-bilingual-zh-en/resolve/${ASR_REVISION}`;
 const TTS_REVISION = '5434a4bb4ce2cac232ef5714460f51068a7b886d';
 // The quantized model was restored in a later revision; dictionary assets remain pinned separately.
 const TTS_INT8_REVISION = 'a0d5c6a264c0ef92d70d8661d8cc502d79627cd6';
@@ -30,27 +30,21 @@ const TTS_INT8_BASE = `https://huggingface.co/csukuangfj/vits-melo-tts-zh_en/res
 const asrFiles: SpeechModelFile[] = [
   {
     path: 'encoder.onnx',
-    url: `${ASR_BASE}/exp/32/encoder-epoch-99-avg-1.int8.onnx`,
-    size: 42_980_793,
-    sha256: 'db6f51551762e40e549166fe041ea3e45464370b595e9ad23f06478ec3794fbb',
+    url: `${ASR_BASE}/encoder.int8.onnx`,
+    size: 165_462_184,
+    sha256: '81a70226a8934e6ed92aa1d4fc486b428b5398e2f2619ed4897b7294cab90e9a',
   },
   {
     path: 'decoder.onnx',
-    url: `${ASR_BASE}/exp/32/decoder-epoch-99-avg-1.onnx`,
-    size: 13_877_276,
-    sha256: '89be509a83175261695bdef5fd1c7b9ab1129a663d1284e7ba9f8507b21e0906',
-  },
-  {
-    path: 'joiner.onnx',
-    url: `${ASR_BASE}/exp/32/joiner-epoch-99-avg-1.int8.onnx`,
-    size: 3_228_485,
-    sha256: 'bdda356d6f9b8c2d7cee9ee0e26075fa537490f7fd06520be408d287073667b9',
+    url: `${ASR_BASE}/decoder.int8.onnx`,
+    size: 71_664_561,
+    sha256: 'f3cca9f77bb9d93c8fcbfb63ae617b6b1ee96818df3aa3b151c40658fe38594f',
   },
   {
     path: 'tokens.txt',
-    url: `${ASR_BASE}/data/lang_char_bpe/tokens.txt`,
-    size: 56_317,
-    sha256: 'a8e0e4ec53810e433789b54a5c0134a7eaa2ffca595a6334d54c00da858841d3',
+    url: `${ASR_BASE}/tokens.txt`,
+    size: 75_756,
+    sha256: '59aba8873a2ed1e122c25fee421e25f283b63290efbde85c1f01a853d83cb6e6',
   },
 ];
 
@@ -116,9 +110,9 @@ const ttsFiles: SpeechModelFile[] = [
 export const bundledSpeechModelManifest: SpeechModelManifest = {
   schemaVersion: 1,
   asr: {
-    id: 'zipformer-small-zh-en-int8',
+    id: 'paraformer-zh-en-int8',
     version: ASR_REVISION.slice(0, 12),
-    label: '中英双语实时识别',
+    label: '高准确率中英双语实时识别',
     totalBytes: asrFiles.reduce((total, file) => total + file.size, 0),
     files: asrFiles,
   },
