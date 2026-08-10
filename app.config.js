@@ -16,6 +16,7 @@ module.exports = ({ config }) => {
       ...((base.plugins || [])),
       ...((config?.plugins || [])),
       './plugins/withLocalizedAppName',
+      './plugins/withBundledSpeechModels',
     ],
     ios: {
       ...(base.ios || {}),

@@ -1,7 +1,9 @@
 import * as FileSystem from 'expo-file-system';
 import type { DownloadProgressData } from 'expo-file-system';
 import ReactNativeBlobUtil from 'react-native-blob-util';
+import WttSpeechNative from 'wtt-speech-native';
 import {
+  bundledSpeechModelManifest,
   loadSpeechModelManifest,
   type SpeechModelDefinition,
   type SpeechModelFile,
@@ -77,12 +79,57 @@ async function modelFilesPresent(directory: string, definition: SpeechModelDefin
   return checks.every(Boolean);
 }
 
+async function bundledModelAvailable(kind: SpeechModelKind, definition: SpeechModelDefinition) {
+  if (manifestSignature(definition) !== manifestSignature(bundledSpeechModelManifest[kind])) {
+    return false;
+  }
+  try {
+    return Boolean(WttSpeechNative?.hasBundledModel(kind));
+  } catch {
+    return false;
+  }
+}
+
+async function writeReadyMarker(directory: string, definition: SpeechModelDefinition) {
+  await FileSystem.writeAsStringAsync(
+    readyMarker(directory),
+    JSON.stringify({
+      id: definition.id,
+      version: definition.version,
+      signature: manifestSignature(definition),
+      completedAt: Date.now(),
+    }),
+  );
+}
+
+async function extractBundledModel(
+  kind: SpeechModelKind,
+  directory: string,
+  definition: SpeechModelDefinition,
+) {
+  if (!(await bundledModelAvailable(kind, definition)) || !WttSpeechNative) return false;
+  const result = await WttSpeechNative.extractBundledModel(kind, directory);
+  if (!result.available || !result.success) return false;
+  const checks = await Promise.all(
+    definition.files.map((file) => fileMatches(`${directory}${file.path}`, file, true)),
+  );
+  if (!checks.every(Boolean)) {
+    await FileSystem.deleteAsync(directory, { idempotent: true });
+    throw new Error(`Bundled ${kind.toUpperCase()} model verification failed`);
+  }
+  await writeReadyMarker(directory, definition);
+  return true;
+}
+
 export async function speechModelStatus() {
   const source = await manifest();
   const [asrReady, ttsReady] = await Promise.all(
     (['asr', 'tts'] as const).map(async (kind) => {
       const definition = definitionFor(source, kind);
-      return modelFilesPresent(modelDirectory(kind, definition), definition);
+      return (
+        (await modelFilesPresent(modelDirectory(kind, definition), definition)) ||
+        (await bundledModelAvailable(kind, definition))
+      );
     }),
   );
   return {
@@ -96,11 +143,14 @@ export async function speechModelStatus() {
 export async function ensureSpeechModel(
   kind: SpeechModelKind,
   onProgress?: (progress: SpeechDownloadProgress) => void,
+  allowNetwork = true,
 ) {
   const source = await manifest();
   const definition = definitionFor(source, kind);
   const directory = modelDirectory(kind, definition);
   if (await modelFilesPresent(directory, definition)) return directory;
+  if (await extractBundledModel(kind, directory, definition)) return directory;
+  if (!allowNetwork) return null;
 
   await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
   let completedBytes = 0;
@@ -150,15 +200,7 @@ export async function ensureSpeechModel(
     }
   }
 
-  await FileSystem.writeAsStringAsync(
-    readyMarker(directory),
-    JSON.stringify({
-      id: definition.id,
-      version: definition.version,
-      signature: manifestSignature(definition),
-      completedAt: Date.now(),
-    }),
-  );
+  await writeReadyMarker(directory, definition);
   onProgress?.({
     model: kind,
     progress: 1,

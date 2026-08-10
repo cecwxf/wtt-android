@@ -68,20 +68,27 @@ export function useNativeSpeechBridge(webViewRef: RefObject<WebViewType | null>)
       const status = await speechModelStatus();
       const ready = model === 'asr' ? status.asrReady : status.ttsReady;
       const totalBytes = model === 'asr' ? status.asrBytes : status.ttsBytes;
-      if (ready) return ensureSpeechModel(model);
+      if (ready) {
+        const localModel = await ensureSpeechModel(model, undefined, false);
+        if (localModel) return localModel;
+      }
       if (!allowDownload) {
         emit({ state: 'model-required', model, totalBytes });
         return null;
       }
-      return ensureSpeechModel(model, (progress) => {
-        emit({
-          state: 'downloading',
-          model,
-          progress: progress.progress,
-          downloadedBytes: progress.downloadedBytes,
-          totalBytes: progress.totalBytes,
-        });
-      });
+      return ensureSpeechModel(
+        model,
+        (progress) => {
+          emit({
+            state: 'downloading',
+            model,
+            progress: progress.progress,
+            downloadedBytes: progress.downloadedBytes,
+            totalBytes: progress.totalBytes,
+          });
+        },
+        true,
+      );
     },
     [emit],
   );

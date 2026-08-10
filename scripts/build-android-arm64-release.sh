@@ -11,6 +11,7 @@ fi
 
 node "$ROOT_DIR/scripts/sync-android-version.mjs"
 node "$ROOT_DIR/scripts/sync-android-assets.mjs"
+node "$ROOT_DIR/scripts/prepare-bundled-speech-models.mjs"
 
 cd "$ANDROID_DIR"
 ./gradlew :app:clean :app:assembleRelease \

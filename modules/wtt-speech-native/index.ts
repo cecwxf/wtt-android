@@ -11,6 +11,11 @@ type TtsConfig = {
 };
 
 type WttSpeechNativeModule = {
+  hasBundledModel(kind: 'asr' | 'tts'): boolean;
+  extractBundledModel(
+    kind: 'asr' | 'tts',
+    destination: string,
+  ): Promise<{ success: boolean; available: boolean }>;
   initializeTts(config: TtsConfig): Promise<{ success: boolean; sampleRate: number }>;
   speak(text: string, speakerId?: number, speakingRate?: number): Promise<{ success: boolean }>;
   stop(): void;

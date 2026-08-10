@@ -25,6 +25,36 @@ class WttSpeechNativeModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("WttSpeechNative")
 
+    Function("hasBundledModel") { kind: String ->
+      val safeKind = checkedModelKind(kind)
+      val assets = appContext.reactContext?.assets ?: return@Function false
+      !assets.list("wtt-speech/$safeKind").isNullOrEmpty()
+    }
+
+    AsyncFunction("extractBundledModel") { kind: String, destination: String, promise: Promise ->
+      executor.execute {
+        try {
+          val safeKind = checkedModelKind(kind)
+          val context = appContext.reactContext ?: error("Android application context is unavailable")
+          val assetRoot = "wtt-speech/$safeKind"
+          if (context.assets.list(assetRoot).isNullOrEmpty()) {
+            promise.resolve(mapOf("success" to false, "available" to false))
+            return@execute
+          }
+          val target = File(cleanPath(destination))
+          val staging = File(target.parentFile, "${target.name}.bundled-${System.nanoTime()}")
+          staging.deleteRecursively()
+          staging.mkdirs()
+          copyAssetTree(assetRoot, staging)
+          target.deleteRecursively()
+          require(staging.renameTo(target)) { "Failed to activate bundled speech model" }
+          promise.resolve(mapOf("success" to true, "available" to true))
+        } catch (error: Throwable) {
+          promise.reject("ERR_SPEECH_MODEL_EXTRACT", error.message ?: "Model extraction failed", error)
+        }
+      }
+    }
+
     AsyncFunction("initializeTts") { options: Map<String, Any?>, promise: Promise ->
       executor.execute {
         try {
@@ -126,6 +156,25 @@ class WttSpeechNativeModule : Module() {
   private fun requiredString(options: Map<String, Any?>, key: String): String {
     return (options[key] as? String)?.takeIf { it.isNotBlank() }
       ?: error("Missing TTS option: $key")
+  }
+
+  private fun checkedModelKind(value: String): String {
+    require(value == "asr" || value == "tts") { "Unsupported speech model kind" }
+    return value
+  }
+
+  private fun copyAssetTree(assetPath: String, destination: File) {
+    val assets = appContext.reactContext?.assets ?: error("Android application context is unavailable")
+    val children = assets.list(assetPath).orEmpty()
+    if (children.isEmpty()) {
+      destination.parentFile?.mkdirs()
+      assets.open(assetPath).use { input ->
+        destination.outputStream().buffered().use { output -> input.copyTo(output) }
+      }
+      return
+    }
+    destination.mkdirs()
+    children.forEach { child -> copyAssetTree("$assetPath/$child", File(destination, child)) }
   }
 
   private fun cleanPath(value: String): String {

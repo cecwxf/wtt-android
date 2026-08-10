@@ -22,7 +22,10 @@ export type SpeechModelManifest = {
 const ASR_REVISION = 'e2382758de9a0219b4efe682b95af30b399db3b8';
 const ASR_BASE = `https://huggingface.co/csukuangfj/k2fsa-zipformer-bilingual-zh-en-t/resolve/${ASR_REVISION}`;
 const TTS_REVISION = '5434a4bb4ce2cac232ef5714460f51068a7b886d';
+// The quantized model was restored in a later revision; dictionary assets remain pinned separately.
+const TTS_INT8_REVISION = 'a0d5c6a264c0ef92d70d8661d8cc502d79627cd6';
 const TTS_BASE = `https://huggingface.co/csukuangfj/vits-melo-tts-zh_en/resolve/${TTS_REVISION}`;
+const TTS_INT8_BASE = `https://huggingface.co/csukuangfj/vits-melo-tts-zh_en/resolve/${TTS_INT8_REVISION}`;
 
 const asrFiles: SpeechModelFile[] = [
   {
@@ -56,7 +59,7 @@ const ttsFiles: SpeechModelFile[] = [
     'model.onnx',
     53_517_430,
     'f085f5079e05f039b800aeb542f5253c26a303211b0c6465d0d9387977855a63',
-    'model.int8.onnx',
+    `${TTS_INT8_BASE}/model.int8.onnx`,
   ],
   ['tokens.txt', 655, 'd18664a7e12bd7ea1022ddaf951e534e136815016c5a809d6b64156bffb4369d'],
   ['lexicon.txt', 6_837_622, '2b90dc30e293a54c2f08e7e9f6f6ff0b3107a2561364dd595a194754b8fbbf33'],
@@ -105,7 +108,9 @@ const ttsFiles: SpeechModelFile[] = [
   path: String(path),
   size: Number(size),
   sha256: String(sha256),
-  url: `${TTS_BASE}/${String(sourcePath || path)}`,
+  url: String(sourcePath || path).startsWith('https://')
+    ? String(sourcePath)
+    : `${TTS_BASE}/${String(sourcePath || path)}`,
 }));
 
 export const bundledSpeechModelManifest: SpeechModelManifest = {
@@ -119,7 +124,7 @@ export const bundledSpeechModelManifest: SpeechModelManifest = {
   },
   tts: {
     id: 'vits-melo-zh-en-int8',
-    version: TTS_REVISION.slice(0, 12),
+    version: `${TTS_REVISION.slice(0, 12)}-${TTS_INT8_REVISION.slice(0, 12)}`,
     label: '中英双语本地朗读',
     totalBytes: ttsFiles.reduce((total, file) => total + file.size, 0),
     files: ttsFiles,
