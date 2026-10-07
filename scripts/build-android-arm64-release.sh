@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ANDROID_DIR="$ROOT_DIR/android"
+source "$ROOT_DIR/scripts/android-build-env.sh"
 
 if [[ ! -f "$ANDROID_DIR/app/build.gradle" ]]; then
   echo "android/app/build.gradle not found. Generate native Android project first."
@@ -16,7 +17,7 @@ node "$ROOT_DIR/scripts/prepare-bundled-speech-models.mjs"
 cd "$ANDROID_DIR"
 ./gradlew :app:clean :app:assembleRelease \
   --init-script "$ROOT_DIR/scripts/android-arm64.init.gradle" \
-  -PreactNativeArchitectures=arm64-v8a
+  -PreactNativeArchitectures=arm64-v8a "${WTT_ANDROID_GRADLE_ARGS[@]}"
 
 echo "arm64-v8a release APK:"
 ls -lh "$ANDROID_DIR/app/build/outputs/apk/release/app-release.apk"
