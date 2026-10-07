@@ -1,6 +1,6 @@
 {
   "name": "wtt-mobile",
-  "version": "1.2.21",
+  "version": "1.2.22",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -16,6 +16,7 @@
     "release:china": "./scripts/release-china-package.sh",
     "build:android:arm64": "./scripts/build-android-arm64-release.sh",
     "build:android:universal": "./scripts/build-android-universal-release.sh",
+    "build:ios:simulator": "bash ./scripts/build-ios-simulator-release.sh",
     "build:play": "APP_VARIANT=global eas build --platform android --profile production-global",
     "build:china": "APP_VARIANT=china eas build --platform android --profile production-china",
     "reset-project": "node ./scripts/reset-project.js"
@@ -40,6 +41,7 @@
     "expo-linking": "~7.0.5",
     "expo-router": "~4.0.20",
     "expo-secure-store": "~14.0.1",
+    "expo-sharing": "~13.0.1",
     "expo-splash-screen": "~0.29.22",
     "expo-status-bar": "~2.0.1",
     "expo-symbols": "~0.2.2",

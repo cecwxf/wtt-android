@@ -1,0 +1,37 @@
+name: Build iOS Simulator
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    runs-on: macos-14
+    timeout-minutes: 45
+    env:
+      NODE_ENV: production
+      APP_VARIANT: global
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --include=dev --no-audit --no-fund
+      - name: Build standalone Simulator Release
+        run: npm run build:ios:simulator
+      - name: Package app without modifying its executable permissions
+        run: |
+          mkdir -p artifacts
+          VERSION=$(node -p "require('./app.json').expo.version")
+          ditto -c -k --keepParent build/ios-simulator/Build/Products/Release-iphonesimulator/WTT.app "artifacts/WTT-${VERSION}-ios-simulator.zip"
+          shasum -a 256 artifacts/*.zip > artifacts/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wtt-ios-simulator-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14

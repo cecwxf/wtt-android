@@ -6,6 +6,7 @@ import { Redirect, router, useLocalSearchParams, usePathname } from 'expo-router
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   Alert,
   Image,
   BackHandler,
@@ -28,6 +29,8 @@ import { WTT_API_URL } from '@/lib/api/base-url';
 import { LaunchLink } from '@/lib/navigation/launch-link';
 import { authResumeUrl } from '@/lib/navigation/auth-entry';
 import { isTrustedAppUrl, NativeWebSession } from '@/lib/auth/native-web-session';
+import { useNativeFilesBridge } from '@/lib/files/use-native-files-bridge';
+import { NativeFileDownloadCard } from '@/components/NativeFileDownloadCard';
 
 const DEFAULT_WEB_URL = 'https://www.ultraspace.ai';
 const ANDROID_RESET_SESSION_MESSAGE = 'WTT_ANDROID_RESET_SESSION';
@@ -430,6 +433,8 @@ export default function WttWebViewScreen() {
     }
   }, [webBaseUrl]);
   const allowedOrigin = useMemo(() => new URL(webBaseUrl).origin, [webBaseUrl]);
+  const readCurrentUrl = useCallback(() => currentUrlRef.current, []);
+  const nativeFiles = useNativeFilesBridge(webViewRef, allowedOrigin, readCurrentUrl);
   const sessionBridge = useMemo(
     () =>
       new NativeWebSession({
@@ -469,9 +474,23 @@ export default function WttWebViewScreen() {
       ).join('');
       const script = sessionBridge.openDocument(url, nonce);
       if (script) webViewRef.current?.injectJavaScript(script);
+      const filesScript = nativeFiles.bridge.openDocument(url, nonce);
+      if (filesScript) webViewRef.current?.injectJavaScript(filesScript);
     },
-    [sessionBridge],
+    [sessionBridge, nativeFiles.bridge],
   );
+
+  useEffect(() => {
+    let previous = AppState.currentState;
+    const subscription = AppState.addEventListener('change', next => {
+      const resumed = next === 'active' && previous !== 'active';
+      previous = next;
+      if (!resumed || !isTrustedAppUrl(currentUrlRef.current, allowedOrigin)) return;
+      webViewRef.current?.injectJavaScript(`(function(){if(window.top!==window||location.origin!==${JSON.stringify(allowedOrigin)})return;
+        window.dispatchEvent(new Event('focus'));window.dispatchEvent(new CustomEvent('wtt-native-resume'));})();true;`);
+    });
+    return () => subscription.remove();
+  }, [allowedOrigin]);
 
   useEffect(() => {
     sessionBridge.credentialsChanged();
@@ -657,6 +676,7 @@ export default function WttWebViewScreen() {
         )
           return;
         if (sessionBridge.handle(data, eventUrl)) return;
+        if (nativeFiles.bridge.handle(data, eventUrl)) return;
         if (handleSpeechMessage(data)) return;
       } catch {
         return;
@@ -694,7 +714,7 @@ export default function WttWebViewScreen() {
         // Ignore unrelated WebView messages.
       }
     },
-    [allowedOrigin, sessionBridge, handleSpeechMessage, resetWebSession],
+    [allowedOrigin, sessionBridge, nativeFiles.bridge, handleSpeechMessage, resetWebSession],
   );
 
   const handleWebError = useCallback((event: WebViewErrorEvent) => {
@@ -757,6 +777,7 @@ export default function WttWebViewScreen() {
         onLoadStart={(event) => {
           currentUrlRef.current = event.nativeEvent.url;
           sessionBridge.invalidate();
+          nativeFiles.bridge.invalidate();
           setLoading(true);
           setError('');
         }}
@@ -798,6 +819,7 @@ export default function WttWebViewScreen() {
         onNavigationStateChange={(state) => {
           const previousUrl = currentUrlRef.current;
           currentUrlRef.current = state.url;
+          if (!isTrustedAppUrl(state.url, allowedOrigin)) nativeFiles.bridge.invalidate();
           if (isMobileLoginUrl(state.url) && !useAuthStore.getState().token) {
             sessionBridge.invalidate();
             router.replace('/(auth)/login');
@@ -813,6 +835,7 @@ export default function WttWebViewScreen() {
         onShouldStartLoadWithRequest={shouldStartLoad}
         applicationNameForUserAgent={`WTT-${Platform.OS === 'ios' ? 'iOS' : 'Android'}-WebView/${Constants.expoConfig?.version || '1.2.20'}`}
       />
+      {nativeFiles.state && <NativeFileDownloadCard state={nativeFiles.state} onCancel={nativeFiles.cancel} onShare={() => void nativeFiles.share()} onDismiss={nativeFiles.dismiss} />}
       {error ? (
         <View style={styles.errorCard}>
           <Text style={styles.errorTitle}>WTT 加载失败</Text>
