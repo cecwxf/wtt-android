@@ -2,6 +2,11 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 const memoryFallback = new Map<string, string>();
+function requiresNativeSecureStorage(key: string) {
+  return (
+    Platform.OS !== 'web' && ['wtt_auth_token', 'wtt_user', 'wtt_auth_session_v1'].includes(key)
+  );
+}
 
 function hasSecureStoreApi() {
   return typeof (SecureStore as { getItemAsync?: unknown }).getItemAsync === 'function';
@@ -20,10 +25,12 @@ export async function getSecureItem(key: string): Promise<string | null> {
   if (hasSecureStoreApi()) {
     try {
       return await SecureStore.getItemAsync(key);
-    } catch {
+    } catch (error) {
+      if (requiresNativeSecureStorage(key)) throw error;
       // fallback below
     }
   }
+  if (requiresNativeSecureStorage(key)) throw new Error('WTT secure storage is unavailable');
 
   const web = getWebStorage();
   if (web) {
@@ -39,10 +46,12 @@ export async function setSecureItem(key: string, value: string): Promise<void> {
     try {
       await SecureStore.setItemAsync(key, value);
       return;
-    } catch {
+    } catch (error) {
+      if (requiresNativeSecureStorage(key)) throw error;
       // fallback below
     }
   }
+  if (requiresNativeSecureStorage(key)) throw new Error('WTT secure storage is unavailable');
 
   const web = getWebStorage();
   if (web) {
@@ -58,10 +67,12 @@ export async function deleteSecureItem(key: string): Promise<void> {
     try {
       await SecureStore.deleteItemAsync(key);
       return;
-    } catch {
+    } catch (error) {
+      if (requiresNativeSecureStorage(key)) throw error;
       // fallback below
     }
   }
+  if (requiresNativeSecureStorage(key)) throw new Error('WTT secure storage is unavailable');
 
   const web = getWebStorage();
   if (web) {

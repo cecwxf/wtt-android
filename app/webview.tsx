@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import * as Crypto from 'expo-crypto';
 import * as ExpoLinking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { useLocalSearchParams, usePathname } from 'expo-router';
@@ -18,15 +19,13 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  WebView,
-  type WebViewMessageEvent,
-  type WebViewNavigation,
-} from 'react-native-webview';
+import { WebView, type WebViewMessageEvent, type WebViewNavigation } from 'react-native-webview';
 import type { WebViewErrorEvent } from 'react-native-webview/lib/WebViewTypes';
 import { nativeSpeechCapabilityScript } from '@/lib/speech/protocol';
 import { nativeSpeechEnabled, useNativeSpeechBridge } from '@/lib/speech/use-native-speech-bridge';
 import { useAuthStore } from '@/stores/auth';
+import { WTT_API_URL } from '@/lib/api/base-url';
+import { isTrustedAppUrl, NativeWebSession } from '@/lib/auth/native-web-session';
 
 const DEFAULT_WEB_URL = 'https://www.ultraspace.ai';
 const ANDROID_RESET_SESSION_MESSAGE = 'WTT_ANDROID_RESET_SESSION';
@@ -161,13 +160,11 @@ function normalizeBaseUrl(raw?: string): string {
 
 function isAuthProviderUrl(url: string): boolean {
   try {
-    const host = new URL(url).hostname.toLowerCase();
-    return (
-      host.endsWith('github.com') ||
-      host.endsWith('google.com') ||
-      host.endsWith('googleusercontent.com') ||
-      host.endsWith('twitter.com') ||
-      host.endsWith('x.com')
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return false;
+    const host = parsed.hostname.toLowerCase();
+    return ['github.com', 'google.com', 'googleusercontent.com', 'twitter.com', 'x.com'].some(
+      (domain) => host === domain || host.endsWith(`.${domain}`),
     );
   } catch {
     return false;
@@ -204,7 +201,7 @@ function mobileUrlForAllowedHostNavigation(url: string, webBaseUrl: string): str
       pathname === '/upgrade' ||
       pathname.startsWith('/api/auth')
     ) {
-      if (pathname === '/upgrade') parsed.searchParams.set('source', 'android');
+      if (pathname === '/upgrade') parsed.searchParams.set('source', Platform.OS);
       return parsed.toString();
     }
     return appendMobileParams(webBaseUrl, '/mobile/feed', {});
@@ -260,39 +257,6 @@ function authenticatedDownloadScript(url: string): string {
   `;
 }
 
-function nativeSessionBridgeScript(token?: string | null, allowedHost?: string): string {
-  const cleanToken = String(token || '').trim();
-  if (!cleanToken) return PREVENT_INITIAL_AUTOFOCUS_SCRIPT;
-  return `
-    ${PREVENT_INITIAL_AUTOFOCUS_SCRIPT}
-    (function() {
-      var expectedHost = ${JSON.stringify(allowedHost || '')};
-      if (expectedHost && location.hostname.toLowerCase() !== expectedHost) return true;
-      if (location.pathname.indexOf('/api/') === 0) return true;
-      var token = ${JSON.stringify(cleanToken)};
-      var storageKey = '__WTT_NATIVE_SESSION_BRIDGED__:' + token.slice(-12);
-      try {
-        localStorage.setItem('__WTT_NATIVE_ACCESS_TOKEN__', token);
-      } catch (error) {}
-      try {
-        if (sessionStorage.getItem(storageKey) === '1') return true;
-        sessionStorage.setItem(storageKey, '1');
-      } catch (error) {}
-      fetch('/api/mobile/native-session', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { Authorization: 'Bearer ' + token }
-      }).then(function(response) {
-        if (response && response.ok) {
-          window.location.replace(window.location.href);
-        }
-      }).catch(function() {});
-      return true;
-    })();
-    true;
-  `;
-}
-
 function formatBytes(value?: number | null): string {
   const bytes = Number(value || 0);
   if (!Number.isFinite(bytes) || bytes <= 0) return '';
@@ -313,7 +277,7 @@ function appendMobileParams(
   params: Record<string, string | undefined>,
 ): string {
   const url = new URL(`${baseUrl}${path}`);
-  url.searchParams.set('source', 'android');
+  url.searchParams.set('source', Platform.OS);
   for (const [key, value] of Object.entries(params)) {
     const cleaned = String(value || '').trim();
     if (cleaned) url.searchParams.set(key, cleaned);
@@ -450,7 +414,7 @@ export default function WttWebViewScreen() {
       ),
     [],
   );
-  const mobileFeedUrl = `${webBaseUrl}/mobile/feed?source=android`;
+  const mobileFeedUrl = appendMobileParams(webBaseUrl, '/mobile/feed', {});
   const [targetUrl, setTargetUrl] = useState(mobileFeedUrl);
   const targetUrlRef = useRef(mobileFeedUrl);
   const currentUrlRef = useRef(mobileFeedUrl);
@@ -461,14 +425,55 @@ export default function WttWebViewScreen() {
       return '';
     }
   }, [webBaseUrl]);
-  const injectedScript = useMemo(
+  const allowedOrigin = useMemo(() => new URL(webBaseUrl).origin, [webBaseUrl]);
+  const sessionBridge = useMemo(
     () =>
-      `${nativeSessionBridgeScript(nativeToken, allowedHost)}\n${nativeSpeechCapabilityScript(
+      new NativeWebSession({
+        origin: allowedOrigin,
+        apiUrl: WTT_API_URL,
+        credentials: () => {
+          const auth = useAuthStore.getState();
+          const userId = auth.user?.id || auth.user?.user_id;
+          return auth.token && userId ? { token: auth.token, userId } : null;
+        },
+        currentUrl: () => currentUrlRef.current,
+        inject: (script) => webViewRef.current?.injectJavaScript(script),
+        signOut: () => useAuthStore.getState().logout(),
+        reportError: (message) => {
+          setLoading(false);
+          setError(message);
+        },
+      }),
+    [allowedOrigin],
+  );
+  const injectedScript = useMemo(
+    () => `(function(){
+      if(window.top!==window||location.origin!==${JSON.stringify(allowedOrigin)})return;
+      if(!${JSON.stringify(['/mobile/feed', '/mobile/settings', '/mobile/login', '/login', '/feed', '/upgrade'])}.includes(location.pathname.replace(/\\/+$/, '')))return;
+      window.__WTT_NATIVE_SESSION_PENDING__=${Boolean(nativeToken)};
+      try{localStorage.removeItem('__WTT_NATIVE_ACCESS_TOKEN__');}catch(e){}
+      ${PREVENT_INITIAL_AUTOFOCUS_SCRIPT}\n${nativeSpeechCapabilityScript(
         nativeSpeechEnabled,
         allowedHost,
-      )}`,
-    [allowedHost, nativeToken],
+      )}})();true;`,
+    [allowedHost, allowedOrigin, nativeToken],
   );
+  const installSessionBridge = useCallback(
+    (url: string) => {
+      const nonce = Array.from(Crypto.getRandomBytes(32), (byte) =>
+        byte.toString(16).padStart(2, '0'),
+      ).join('');
+      const script = sessionBridge.openDocument(url, nonce);
+      if (script) webViewRef.current?.injectJavaScript(script);
+    },
+    [sessionBridge],
+  );
+
+  useEffect(() => {
+    sessionBridge.credentialsChanged();
+    if (nativeToken) installSessionBridge(currentUrlRef.current);
+  }, [nativeToken, installSessionBridge, sessionBridge]);
+  useEffect(() => () => sessionBridge.invalidate(), [sessionBridge]);
   const nativeRouteUrl = useMemo(
     () => mapNativePathToWebUrl(pathname, routeParams, webBaseUrl),
     [pathname, routeParams, webBaseUrl],
@@ -551,27 +556,30 @@ export default function WttWebViewScreen() {
       {
         text: '继续',
         style: 'destructive',
-        onPress: () => {
+        onPress: async () => {
+          sessionBridge.invalidate();
+          await useAuthStore
+            .getState()
+            .logout()
+            .catch(() => undefined);
           webViewRef.current?.injectJavaScript(`
-            try {
-              localStorage.clear();
-              sessionStorage.clear();
-              document.cookie.split(';').forEach(function(cookie) {
-                document.cookie = cookie.replace(/^ +/, '').replace(/=.*/, '=;expires=' + new Date(0).toUTCString() + ';path=/');
-              });
-            } catch (error) {}
+            (async function(){
+              if(window.top!==window||location.origin!==${JSON.stringify(allowedOrigin)})return;
+              try{localStorage.removeItem('__WTT_NATIVE_ACCESS_TOKEN__');sessionStorage.clear();
+                var csrf=await fetch('/api/auth/csrf',{credentials:'include'}).then(function(r){return r.json();});
+                await fetch('/api/auth/signout',{method:'POST',credentials:'include',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrfToken:csrf.csrfToken,json:'true'})});
+              }catch(e){}
+              location.replace(${JSON.stringify(appendMobileParams(webBaseUrl, '/mobile/login', { callbackUrl: '/mobile/feed' }))});
+            })();
             true;
           `);
           webViewRef.current?.clearCache?.(true);
           webViewRef.current?.clearHistory?.();
           setCanGoBack(false);
-          navigateToTargetUrl(
-            `${webBaseUrl}/mobile/login?callbackUrl=${encodeURIComponent('/mobile/feed')}&source=android&reset=${Date.now()}`,
-          );
         },
       },
     ]);
-  }, [navigateToTargetUrl, webBaseUrl]);
+  }, [allowedOrigin, sessionBridge, webBaseUrl]);
 
   useEffect(() => {
     let mounted = true;
@@ -595,12 +603,14 @@ export default function WttWebViewScreen() {
   const shouldStartLoad = useCallback(
     (request: TopFrameNavigation) => {
       const url = request.url || '';
-      if (!url || url.startsWith('about:') || url.startsWith('data:')) return true;
+      if (url === 'about:blank') return true;
+      if (!url) return false;
       try {
         const parsed = new URL(url);
-        const host = parsed.hostname.toLowerCase();
         if (parsed.protocol === 'wtt:') return !loadDeepLink(url);
-        if (host === allowedHost) {
+        if (!isTopFrameNavigation(request))
+          return parsed.protocol === 'https:' || parsed.protocol === 'blob:';
+        if (parsed.origin === allowedOrigin && parsed.protocol === 'https:') {
           if (isWttAttachmentUrl(url)) {
             if (!isTopFrameNavigation(request)) return true;
             setLoading(false);
@@ -619,22 +629,27 @@ export default function WttWebViewScreen() {
         openExternalUrl(url);
         return false;
       } catch {
-        return true;
+        return false;
       }
     },
-    [allowedHost, loadDeepLink, openExternalUrl, webBaseUrl],
+    [allowedOrigin, loadDeepLink, navigateToTargetUrl, openExternalUrl, webBaseUrl],
   );
 
   const handleWebMessage = useCallback(
     (event: WebViewMessageEvent) => {
       const data = event.nativeEvent.data;
       try {
-        const eventHost = new URL(
-          event.nativeEvent.url || targetUrlRef.current,
-        ).hostname.toLowerCase();
-        if (eventHost === allowedHost && handleSpeechMessage(data)) return;
+        const eventUrl = event.nativeEvent.url;
+        if (
+          !eventUrl ||
+          !isTrustedAppUrl(eventUrl, allowedOrigin) ||
+          !isTrustedAppUrl(currentUrlRef.current, allowedOrigin)
+        )
+          return;
+        if (sessionBridge.handle(data, eventUrl)) return;
+        if (handleSpeechMessage(data)) return;
       } catch {
-        // Ignore speech commands from malformed or non-WTT origins.
+        return;
       }
       if (data === ANDROID_RESET_SESSION_MESSAGE) {
         resetWebSession();
@@ -657,16 +672,19 @@ export default function WttWebViewScreen() {
           error: payload.error,
         });
         if (payload.status === 'done' || payload.status === 'error') {
-          downloadClearTimerRef.current = setTimeout(() => {
-            setDownloadProgress(null);
-            downloadClearTimerRef.current = null;
-          }, payload.status === 'done' ? 1800 : 4200);
+          downloadClearTimerRef.current = setTimeout(
+            () => {
+              setDownloadProgress(null);
+              downloadClearTimerRef.current = null;
+            },
+            payload.status === 'done' ? 1800 : 4200,
+          );
         }
       } catch {
         // Ignore unrelated WebView messages.
       }
     },
-    [allowedHost, handleSpeechMessage, resetWebSession],
+    [allowedOrigin, sessionBridge, handleSpeechMessage, resetWebSession],
   );
 
   const handleWebError = useCallback((event: WebViewErrorEvent) => {
@@ -711,13 +729,16 @@ export default function WttWebViewScreen() {
         geolocationEnabled
         javaScriptEnabled
         injectedJavaScriptBeforeContentLoaded={injectedScript}
+        injectedJavaScriptBeforeContentLoadedForMainFrameOnly
         mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"
         mediaPlaybackRequiresUserAction={false}
         saveFormDataDisabled
         setSupportMultipleWindows={false}
         allowsBackForwardNavigationGestures
         pullToRefreshEnabled={Platform.OS === 'android'}
-        onLoadStart={() => {
+        onLoadStart={(event) => {
+          currentUrlRef.current = event.nativeEvent.url;
+          sessionBridge.invalidate();
           setLoading(true);
           setError('');
         }}
@@ -733,7 +754,9 @@ export default function WttWebViewScreen() {
           Keyboard.dismiss();
           setLoading(false);
         }}
-        onLoadEnd={() => {
+        onLoadEnd={(event) => {
+          currentUrlRef.current = event.nativeEvent.url;
+          installSessionBridge(event.nativeEvent.url);
           Keyboard.dismiss();
           setLoading(false);
         }}
@@ -765,7 +788,7 @@ export default function WttWebViewScreen() {
           setCanGoBack(state.canGoBack && !isMobileLoginUrl(state.url));
         }}
         onShouldStartLoadWithRequest={shouldStartLoad}
-        applicationNameForUserAgent="WTT-Android-WebView/1.2.16"
+        applicationNameForUserAgent={`WTT-${Platform.OS === 'ios' ? 'iOS' : 'Android'}-WebView/${Constants.expoConfig?.version || '1.2.19'}`}
       />
       {error ? (
         <View style={styles.errorCard}>
@@ -814,10 +837,7 @@ export default function WttWebViewScreen() {
             <>
               <View style={styles.downloadProgressTrack}>
                 <View
-                  style={[
-                    styles.downloadProgressFill,
-                    { width: `${downloadPercent ?? 18}%` },
-                  ]}
+                  style={[styles.downloadProgressFill, { width: `${downloadPercent ?? 18}%` }]}
                 />
               </View>
               <Text style={styles.downloadMeta} numberOfLines={1}>
