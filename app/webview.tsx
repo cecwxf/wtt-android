@@ -25,6 +25,7 @@ import { nativeSpeechCapabilityScript } from '@/lib/speech/protocol';
 import { nativeSpeechEnabled, useNativeSpeechBridge } from '@/lib/speech/use-native-speech-bridge';
 import { useAuthStore } from '@/stores/auth';
 import { WTT_API_URL } from '@/lib/api/base-url';
+import { LaunchLink } from '@/lib/navigation/launch-link';
 import { isTrustedAppUrl, NativeWebSession } from '@/lib/auth/native-web-session';
 
 const DEFAULT_WEB_URL = 'https://www.ultraspace.ai';
@@ -125,6 +126,7 @@ const PREVENT_INITIAL_AUTOFOCUS_SCRIPT = `
   })();
 `;
 type RouteParams = Record<string, string | string[] | undefined>;
+const launchLink = new LaunchLink();
 type TopFrameNavigation = WebViewNavigation & { isTopFrame?: boolean };
 type DownloadProgress = {
   status: 'start' | 'progress' | 'saving' | 'done' | 'error';
@@ -583,17 +585,21 @@ export default function WttWebViewScreen() {
 
   useEffect(() => {
     let mounted = true;
-    void ExpoLinking.getInitialURL().then((url) => {
-      if (mounted) loadDeepLink(url);
-    });
+    void launchLink
+      .readInitial(() => ExpoLinking.getInitialURL(), nativeRouteUrl)
+      .then((url) => {
+        if (mounted) loadDeepLink(url);
+      })
+      .catch(() => undefined);
     const subscription = ExpoLinking.addEventListener('url', ({ url }) => {
+      launchLink.observeNavigation();
       loadDeepLink(url);
     });
     return () => {
       mounted = false;
       subscription.remove();
     };
-  }, [loadDeepLink]);
+  }, [loadDeepLink, nativeRouteUrl]);
 
   useEffect(() => {
     if (!nativeRouteUrl) return;
@@ -788,7 +794,7 @@ export default function WttWebViewScreen() {
           setCanGoBack(state.canGoBack && !isMobileLoginUrl(state.url));
         }}
         onShouldStartLoadWithRequest={shouldStartLoad}
-        applicationNameForUserAgent={`WTT-${Platform.OS === 'ios' ? 'iOS' : 'Android'}-WebView/${Constants.expoConfig?.version || '1.2.19'}`}
+        applicationNameForUserAgent={`WTT-${Platform.OS === 'ios' ? 'iOS' : 'Android'}-WebView/${Constants.expoConfig?.version || '1.2.20'}`}
       />
       {error ? (
         <View style={styles.errorCard}>
