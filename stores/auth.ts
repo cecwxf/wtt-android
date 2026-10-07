@@ -3,6 +3,7 @@ import { getSecureItem, setSecureItem, deleteSecureItem } from '@/lib/storage/se
 import { WTTApiClient } from '@/lib/api/wtt-client';
 import { WTT_API_URL } from '@/lib/api/base-url';
 import type { OAuthCodeFlowResult, OAuthProvider } from '@/lib/auth/oauth';
+import { startOAuthCodeFlow, exchangeOAuthCode } from '@/lib/auth/oauth';
 
 interface User {
   id: string;
@@ -29,7 +30,7 @@ interface AuthState {
 
   login: (phone: string, password: string) => Promise<void>;
   loginWithPhoneCode: (phone: string, code: string) => Promise<void>;
-  loginWithOAuth: (provider: OAuthProvider, oauth: OAuthCodeFlowResult) => Promise<void>;
+  loginWithOAuth: (provider: OAuthProvider, oauth?: OAuthCodeFlowResult) => Promise<void>;
   register: (
     username: string,
     phone: string,
@@ -138,17 +139,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   loginWithOAuth: async (provider, oauth) => {
     const revision = ++sessionRevision;
+    const flow = oauth || (await startOAuthCodeFlow(provider));
+    if (revision !== sessionRevision) throw new Error('Login superseded');
     const client = new WTTApiClient(WTT_API_URL);
-    const data = await client.oauthCallback(provider, oauth.code, {
-      redirect_uri: oauth.redirectUri,
-      code_verifier: oauth.codeVerifier,
-    });
+    const data = flow.requestTicket
+      ? await exchangeOAuthCode(flow)
+      : await client.oauthCallback(provider, flow.code, {
+          redirect_uri: flow.redirectUri,
+          code_verifier: flow.codeVerifier,
+        });
     const token = data.access_token;
     if (!token) {
       throw new Error('OAuth login failed: missing access token');
     }
 
     const fetched = await fetchCurrentUser(token);
+    if (flow.requestTicket && (!fetched?.id || !('user_id' in data) || fetched.id !== data.user_id))
+      throw new Error('Unable to verify your WTT account. Please retry.');
     await persistSession(token, fetched, set, revision);
   },
 

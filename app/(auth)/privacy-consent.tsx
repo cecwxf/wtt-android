@@ -33,7 +33,7 @@ export default function PrivacyConsentScreen() {
     setSaving(true);
     try {
       await setPrivacyConsentAccepted(true);
-      router.replace('/webview');
+      router.replace('/');
     } finally {
       setSaving(false);
     }

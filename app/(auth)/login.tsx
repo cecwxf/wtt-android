@@ -11,20 +11,24 @@ import {
   Alert,
   StyleSheet,
 } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
+import Constants from 'expo-constants';
 import { useAuthStore } from '@/stores/auth';
 import { wttApi } from '@/lib/api/wtt-client';
 import { useAppTheme } from '@/lib/app-theme';
 import { useI18nStore } from '@/stores/i18n';
 import { useThemeStore } from '@/stores/theme';
-import {
-  getOAuthRedirectUri,
-  isOAuthProviderEnabled,
-  startOAuthCodeFlow,
-  type OAuthProvider,
-} from '@/lib/auth/oauth';
+import { authResumeUrl } from '@/lib/navigation/auth-entry';
+import { getOAuthRedirectUri, isOAuthProviderEnabled, type OAuthProvider } from '@/lib/auth/oauth';
 
 export default function LoginScreen() {
+  const params = useLocalSearchParams();
+  const returnTo = authResumeUrl(
+    params.returnTo,
+    String(Constants.expoConfig?.extra?.wttWebUrl || 'https://www.ultraspace.ai'),
+  );
+  const enterWorkspace = () =>
+    router.replace(returnTo ? { pathname: '/webview', params: { resume: returnTo } } : '/webview');
   const theme = useAppTheme();
   const t = useI18nStore((s) => s.t);
   const locale = useI18nStore((s) => s.locale);
@@ -59,7 +63,7 @@ export default function LoginScreen() {
       } else {
         await loginWithPhoneCode(normalizedPhone, code);
       }
-      router.replace('/webview');
+      enterWorkspace();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed';
       Alert.alert('Login Failed', message);
@@ -92,9 +96,8 @@ export default function LoginScreen() {
   const handleOAuthLogin = async (provider: OAuthProvider) => {
     setOauthLoading(provider);
     try {
-      const oauth = await startOAuthCodeFlow(provider);
-      await loginWithOAuth(provider, oauth);
-      router.replace('/webview');
+      await loginWithOAuth(provider);
+      enterWorkspace();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'OAuth login failed';
       if (message !== 'OAuth cancelled') {

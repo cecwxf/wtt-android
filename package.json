@@ -1,6 +1,6 @@
 {
   "name": "wtt-mobile",
-  "version": "1.2.20",
+  "version": "1.2.21",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
@@ -10,7 +10,7 @@
     "web": "expo start --web",
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
-    "test:auth": "node --test tests/native-web-session.test.mjs tests/auth-store.test.mjs tests/launch-link.test.mjs",
+    "test:auth": "node --test tests/native-web-session.test.mjs tests/auth-store.test.mjs tests/launch-link.test.mjs tests/native-oauth.test.mjs tests/auth-entry.test.mjs",
     "release:check": "node ./scripts/release-check.mjs",
     "release:play": "./scripts/release-play-internal.sh",
     "release:china": "./scripts/release-china-package.sh",

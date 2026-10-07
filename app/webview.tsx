@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import * as Crypto from 'expo-crypto';
 import * as ExpoLinking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import { useLocalSearchParams, usePathname } from 'expo-router';
+import { Redirect, router, useLocalSearchParams, usePathname } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -26,6 +26,7 @@ import { nativeSpeechEnabled, useNativeSpeechBridge } from '@/lib/speech/use-nat
 import { useAuthStore } from '@/stores/auth';
 import { WTT_API_URL } from '@/lib/api/base-url';
 import { LaunchLink } from '@/lib/navigation/launch-link';
+import { authResumeUrl } from '@/lib/navigation/auth-entry';
 import { isTrustedAppUrl, NativeWebSession } from '@/lib/auth/native-web-session';
 
 const DEFAULT_WEB_URL = 'https://www.ultraspace.ai';
@@ -398,6 +399,7 @@ export default function WttWebViewScreen() {
   const webViewRef = useRef<WebView>(null);
   const { handleSpeechMessage } = useNativeSpeechBridge(webViewRef);
   const nativeToken = useAuthStore((s) => s.token);
+  const mountedWithSession = useRef(Boolean(nativeToken));
   const pathname = usePathname();
   const routeParams = useLocalSearchParams() as RouteParams;
   const [canGoBack, setCanGoBack] = useState(false);
@@ -477,8 +479,10 @@ export default function WttWebViewScreen() {
   }, [nativeToken, installSessionBridge, sessionBridge]);
   useEffect(() => () => sessionBridge.invalidate(), [sessionBridge]);
   const nativeRouteUrl = useMemo(
-    () => mapNativePathToWebUrl(pathname, routeParams, webBaseUrl),
-    [pathname, routeParams, webBaseUrl],
+    () =>
+      authResumeUrl(routeParam(routeParams, 'resume'), allowedOrigin) ||
+      mapNativePathToWebUrl(pathname, routeParams, webBaseUrl),
+    [allowedOrigin, pathname, routeParams, webBaseUrl],
   );
 
   const navigateToTargetUrl = useCallback((nextUrl: string) => {
@@ -721,6 +725,14 @@ export default function WttWebViewScreen() {
   const downloadLoadedText = formatBytes(downloadProgress?.loaded);
   const downloadTotalText = formatBytes(downloadProgress?.total);
 
+  if (!mountedWithSession.current && !nativeToken) {
+    return (
+      <Redirect
+        href={{ pathname: '/(auth)/login', params: { returnTo: nativeRouteUrl || mobileFeedUrl } }}
+      />
+    );
+  }
+
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <WebView
@@ -786,6 +798,11 @@ export default function WttWebViewScreen() {
         onNavigationStateChange={(state) => {
           const previousUrl = currentUrlRef.current;
           currentUrlRef.current = state.url;
+          if (isMobileLoginUrl(state.url) && !useAuthStore.getState().token) {
+            sessionBridge.invalidate();
+            router.replace('/(auth)/login');
+            return;
+          }
           if (isMobileFeedUrl(state.url) && isMobileLoginUrl(previousUrl)) {
             setTimeout(() => webViewRef.current?.clearHistory?.(), 0);
             setCanGoBack(false);

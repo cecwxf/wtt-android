@@ -2,18 +2,21 @@ import { Redirect, useRootNavigationState } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useAppSettingsStore } from '@/stores/app-settings';
+import { useAuthStore } from '@/stores/auth';
 
 export default function Index() {
   const appSettingsLoaded = useAppSettingsStore((s) => s.loaded);
   const privacyConsentAccepted = useAppSettingsStore((s) => s.privacyConsentAccepted);
   const loadAppSettings = useAppSettingsStore((s) => s.load);
   const rootNavigation = useRootNavigationState();
+  const authenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
 
   useEffect(() => {
     void loadAppSettings();
   }, [loadAppSettings]);
 
-  if (!rootNavigation?.key || !appSettingsLoaded) {
+  if (!rootNavigation?.key || !appSettingsLoaded || authLoading) {
     return (
       <View style={styles.root}>
         <View style={styles.logoMark}>
@@ -30,7 +33,7 @@ export default function Index() {
     return <Redirect href={'/(auth)/privacy-consent' as never} />;
   }
 
-  return <Redirect href={'/webview' as never} />;
+  return <Redirect href={authenticated ? '/webview' : '/(auth)/login'} />;
 }
 
 const styles = StyleSheet.create({

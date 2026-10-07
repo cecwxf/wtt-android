@@ -6,7 +6,7 @@ import test from 'node:test';
 
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
-function fixture({ fetcher, login, storageSet } = {}) {
+function fixture({ fetcher, login, storageSet, oauthStart, oauthExchange } = {}) {
   const storage = new Map(), requests = [], module = { exports: {} };
   const code = ts.transpileModule(readFileSync(new URL('../stores/auth.ts', import.meta.url), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -16,6 +16,10 @@ function fixture({ fetcher, login, storageSet } = {}) {
     require(name) {
       if (name === 'zustand') return require(name);
       if (name === '@/lib/api/base-url') return { WTT_API_URL: 'https://api.example.test' };
+      if (name === '@/lib/auth/oauth') return {
+        startOAuthCodeFlow: oauthStart || (async () => ({ code: 'code', redirectUri: 'wtt://oauth', requestTicket: 'ticket', codeVerifier: 'proof' })),
+        exchangeOAuthCode: oauthExchange || (async () => ({ access_token: 'alice-token', user_id: 'alice' })),
+      };
       if (name === '@/lib/api/wtt-client') return { WTTApiClient: class {
         loginWithPhonePassword = login || (async () => ({ access_token: 'alice-token' }));
       } };
@@ -110,4 +114,25 @@ test('logout tombstone takes precedence over leftover legacy tokens after a cras
   await f.store.getState().loadToken();
   assert.equal(f.store.getState().isAuthenticated, false);
   assert.equal(f.requests.length, 0);
+});
+
+test('native OAuth browser result after logout cannot exchange or reinstall credentials', async () => {
+  let complete, exchanges = 0;
+  const f = fixture({ oauthStart: () => new Promise(resolve => { complete = resolve; }),
+    oauthExchange: async () => { exchanges++; return { access_token: 'alice-token', user_id: 'alice' }; } });
+  const pending = f.store.getState().loginWithOAuth('github');
+  await f.store.getState().logout();
+  complete({ requestTicket: 'ticket', code: 'code', codeVerifier: 'proof' });
+  await assert.rejects(pending, /superseded/);
+  assert.equal(exchanges, 0);
+  assert.equal(f.store.getState().isAuthenticated, false);
+});
+
+test('native OAuth identity must match the redeemed account and independent auth/me', async () => {
+  const valid = fixture();
+  await valid.store.getState().loginWithOAuth('google');
+  assert.equal(valid.store.getState().user.id, 'alice');
+  const invalid = fixture({ oauthExchange: async () => ({ access_token: 'alice-token', user_id: 'bob' }) });
+  await assert.rejects(invalid.store.getState().loginWithOAuth('twitter'), /verify your WTT account/);
+  assert.equal(invalid.storage.has('wtt_auth_session_v1'), false);
 });
