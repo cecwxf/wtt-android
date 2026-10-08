@@ -1,0 +1,44 @@
+name: Verify iOS Simulator Artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        description: Completed Build iOS Simulator run ID (same app version)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  startup:
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.3
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wtt-ios-simulator-*
+          path: artifacts
+          merge-multiple: true
+          run-id: ${{ inputs.artifact_run_id }}
+          github-token: ${{ github.token }}
+      - name: Verify and extract the existing Release artifact (no rebuild)
+        run: |
+          shasum -a 256 -c artifacts/SHA256SUMS.txt
+          VERSION=$(node -p "require('./app.json').expo.version")
+          ditto -x -k "artifacts/WTT-${VERSION}-ios-simulator.zip" build/ios-startup
+      - name: Install and launch the standalone app on a clean Simulator
+        run: node scripts/verify-ios-simulator-startup.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wtt-ios-startup-${{ github.sha }}
+          path: build/ios-startup/evidence/
+          if-no-files-found: warn
+          retention-days: 14
