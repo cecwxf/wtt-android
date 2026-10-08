@@ -31,6 +31,8 @@ import { authResumeUrl } from '@/lib/navigation/auth-entry';
 import { isTrustedAppUrl, NativeWebSession } from '@/lib/auth/native-web-session';
 import { useNativeFilesBridge } from '@/lib/files/use-native-files-bridge';
 import { NativeFileDownloadCard } from '@/components/NativeFileDownloadCard';
+import { NativeNotificationsBridge } from '@/lib/notifications/protocol';
+import { notificationSettings, saveNotificationSettings, showChatNotification } from '@/lib/notifications/native-notifications';
 
 const DEFAULT_WEB_URL = 'https://www.ultraspace.ai';
 const ANDROID_RESET_SESSION_MESSAGE = 'WTT_ANDROID_RESET_SESSION';
@@ -435,6 +437,12 @@ export default function WttWebViewScreen() {
   const allowedOrigin = useMemo(() => new URL(webBaseUrl).origin, [webBaseUrl]);
   const readCurrentUrl = useCallback(() => currentUrlRef.current, []);
   const nativeFiles = useNativeFilesBridge(webViewRef, allowedOrigin, readCurrentUrl);
+  const notificationBridge = useMemo(() => new NativeNotificationsBridge({
+    origin: allowedOrigin, currentUrl: readCurrentUrl,
+    userId: () => useAuthStore.getState().user?.id || useAuthStore.getState().user?.user_id || null,
+    inject: script => webViewRef.current?.injectJavaScript(script),
+    preferences: notificationSettings, setPreferences: saveNotificationSettings, show: showChatNotification,
+  }), [allowedOrigin, readCurrentUrl]);
   const sessionBridge = useMemo(
     () =>
       new NativeWebSession({
@@ -476,8 +484,10 @@ export default function WttWebViewScreen() {
       if (script) webViewRef.current?.injectJavaScript(script);
       const filesScript = nativeFiles.bridge.openDocument(url, nonce);
       if (filesScript) webViewRef.current?.injectJavaScript(filesScript);
+      const notificationsScript = notificationBridge.openDocument(url, nonce);
+      if (notificationsScript) webViewRef.current?.injectJavaScript(notificationsScript);
     },
-    [sessionBridge, nativeFiles.bridge],
+    [sessionBridge, nativeFiles.bridge, notificationBridge],
   );
 
   useEffect(() => {
@@ -494,9 +504,11 @@ export default function WttWebViewScreen() {
 
   useEffect(() => {
     sessionBridge.credentialsChanged();
+    notificationBridge.invalidate();
     if (nativeToken) installSessionBridge(currentUrlRef.current);
-  }, [nativeToken, installSessionBridge, sessionBridge]);
+  }, [nativeToken, installSessionBridge, sessionBridge, notificationBridge]);
   useEffect(() => () => sessionBridge.invalidate(), [sessionBridge]);
+  useEffect(() => () => notificationBridge.invalidate(), [notificationBridge]);
   const nativeRouteUrl = useMemo(
     () =>
       authResumeUrl(routeParam(routeParams, 'resume'), allowedOrigin) ||
@@ -677,6 +689,7 @@ export default function WttWebViewScreen() {
           return;
         if (sessionBridge.handle(data, eventUrl)) return;
         if (nativeFiles.bridge.handle(data, eventUrl)) return;
+        if (notificationBridge.handle(data, eventUrl)) return;
         if (handleSpeechMessage(data)) return;
       } catch {
         return;
@@ -714,7 +727,7 @@ export default function WttWebViewScreen() {
         // Ignore unrelated WebView messages.
       }
     },
-    [allowedOrigin, sessionBridge, nativeFiles.bridge, handleSpeechMessage, resetWebSession],
+    [allowedOrigin, sessionBridge, nativeFiles.bridge, notificationBridge, handleSpeechMessage, resetWebSession],
   );
 
   const handleWebError = useCallback((event: WebViewErrorEvent) => {
@@ -778,6 +791,7 @@ export default function WttWebViewScreen() {
           currentUrlRef.current = event.nativeEvent.url;
           sessionBridge.invalidate();
           nativeFiles.bridge.invalidate();
+          notificationBridge.invalidate();
           setLoading(true);
           setError('');
         }}
@@ -819,7 +833,10 @@ export default function WttWebViewScreen() {
         onNavigationStateChange={(state) => {
           const previousUrl = currentUrlRef.current;
           currentUrlRef.current = state.url;
-          if (!isTrustedAppUrl(state.url, allowedOrigin)) nativeFiles.bridge.invalidate();
+          if (!isTrustedAppUrl(state.url, allowedOrigin)) {
+            nativeFiles.bridge.invalidate();
+            notificationBridge.invalidate();
+          }
           if (isMobileLoginUrl(state.url) && !useAuthStore.getState().token) {
             sessionBridge.invalidate();
             router.replace('/(auth)/login');

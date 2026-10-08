@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -10,6 +10,7 @@ import { useI18nStore } from '@/stores/i18n';
 import { useThemeStore } from '@/stores/theme';
 import { useAuthStore } from '@/stores/auth';
 import { useAgentsStore } from '@/stores/agents';
+import { observeChatNotifications } from '@/lib/notifications/native-notifications';
 import '../global.css';
 
 SplashScreen.preventAutoHideAsync();
@@ -25,6 +26,12 @@ export default function RootLayout() {
   const loadToken = useAuthStore((s) => s.loadToken);
   const loadSelectedAgent = useAgentsStore((s) => s.loadSelectedAgent);
   const resolvedTheme = useThemeStore((s) => s.resolved);
+  useEffect(() => {
+    if (!ready) return;
+    return observeChatNotifications((agentId, topicId) => router.push({
+      pathname: '/webview', params: { agent_id: agentId, topic_id: topicId },
+    }));
+  }, [ready]);
 
   const [fontsLoaded, fontError] = useFonts({
     Inter: require('../assets/fonts/Inter.ttf'),

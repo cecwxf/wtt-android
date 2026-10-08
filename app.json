@@ -2,7 +2,7 @@
   "expo": {
     "name": "WTT",
     "slug": "wtt-mobile",
-    "version": "1.2.22",
+    "version": "1.2.23",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "wtt",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.waxbyte.wtt",
-      "buildNumber": "28"
+      "buildNumber": "29"
     },
     "android": {
       "permissions": [
@@ -33,7 +33,7 @@
         "backgroundColor": "#1D4ED8"
       },
       "package": "com.waxbyte.wtt",
-      "versionCode": 34
+      "versionCode": 35
     },
     "web": {
       "bundler": "metro",
@@ -52,6 +52,7 @@
       ],
       "expo-font",
       "expo-secure-store",
+      "expo-notifications",
       [
         "expo-image-picker",
         {
