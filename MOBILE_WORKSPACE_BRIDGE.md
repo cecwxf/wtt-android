@@ -2,7 +2,7 @@
 
 Source version: 1.2.26, Android versionCode 38, iOS buildNumber 32.
 The source default WebView entry is `/mobile/workspaces`. The physical Android
-test phone now runs the internal arm64 1.2.25 package; public links remain unchanged.
+test phone now runs the internal arm64 1.2.26/38 package; public links remain unchanged.
 
 ## Routes
 
@@ -53,6 +53,25 @@ account/document invalidation, exact completed size and user-initiated sharing.
 Web accepts both v1 and v2 for legacy Agent files; project files require v2.
 
 ## Verification
+
+- Physical Android 1.2.26/38 was installed with `adb install -r`, retaining the
+  account, Workspace, three sessions and history. A new real Codex turn returned
+  `WTT_ANDROID_126_REAL_CHAT_PASS`; the same formal reply was visible on Mac.
+- The `/status` autocomplete was visible and its actual runtime response arrived
+  in the same session on Android and Mac. This is the WTT-compatible status
+  command, not a native Codex TUI panel or proof of every slash command.
+- The synthetic personal knowledge source `wtt-workspace-kb-20261009.txt` was
+  downloaded through the native v2 bridge. The ready card and OS share panel
+  identified the correct filename and 307 B; no external recipient was selected.
+  Release private-cache isolation was not bypassed to obtain an independent hash.
+  The current ready card rounds sub-MiB files to `0.0 MiB`; the share panel reports
+  the exact bytes. This display limitation is not a zero-byte download.
+- Knowledge-mode chat retrieved `cedar-lantern-741` with a named source/chunk;
+  the acceptance phrase was not included in the question. This was a real model
+  response and survived the native app restart, not a fixture reply.
+- iOS 1.2.26/32 build run `37892093756` was still compiling at this checkpoint.
+  Earlier-version startup evidence does not establish this version's startup
+  or signed-in chat/file behavior.
 
 - TypeScript and Android/iOS Hermes Bundle export pass.
 - Focused bridge tests execute the injected script through request/progress/completion,
