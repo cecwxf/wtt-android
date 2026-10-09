@@ -125,3 +125,21 @@ Web accepts both v1 and v2 for legacy Agent files; project files require v2.
   `a7da02bc97220c86ec33d2e1767a8d93f0de4b9b5bafa6425e9a3464f61c2060`.
   Incremental native Release build passed. This is an internal arm64 package,
   not the universal/store release or an iOS full-flow acceptance.
+
+## Final iOS Simulator Artifact (2026-10-09)
+
+- Downloaded the existing Release build from run `37885384250`, artifact
+  `11596601685`, app source `561b8353de909f14fc24ced5b713e52870504004`.
+  `build/ios-simulator-artifact-1.2.25/WTT-1.2.25-ios-simulator.zip` is
+  34935866 bytes. Its SHA-256 matches the build manifest:
+  `1720fae57414b6a3c7e199c0f0680c981e656d1be79e1acd715cdc67bffcd424`.
+- Extracted Info.plist identifies WTT 1.2.25/31, `com.waxbyte.wtt`,
+  iPhoneSimulator, minimum iOS 16.4. The executable contains arm64 and x86_64.
+- Verification run `37889625214` completed successfully using that exact
+  artifact, without rebuilding. Installed on iPhone 15 / iOS 18.2, cold launched
+  the standalone Release app without Metro, and remained alive after 15 seconds.
+  Downloaded `build/ios-startup-evidence-1.2.25/startup.json` and `startup.png`;
+  the actual screenshot displays privacy/terms consent. Consent was not accepted.
+- Local full Xcode remains absent. Neither this startup evidence nor the compiled
+  artifact proves actual iOS authentication, Workspace chat, native file sharing
+  or OS notification delivery. Those gates remain explicitly unverified.
