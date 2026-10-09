@@ -21,6 +21,7 @@ function fixture() {
       if (name === 'expo-file-system') return { documentDirectory: 'file:///fixture/' };
       if (name === 'react-native') return { AppState: { currentState: 'active' }, Platform: { OS: 'android' } };
       if (name === '@/stores/auth') return { useAuthStore: { getState: () => ({ user, token: 'synthetic-token' }) } };
+      if (name === './native-push') return { pushStatus: () => 'off' };
       throw new Error(`Unexpected module ${name}`);
     },
   });
@@ -36,6 +37,7 @@ test('the Expo Android raw handler and mapped iOS handler display only this acco
   assert.equal(android.shouldShowAlert, true);
   assert.equal(android.shouldPlaySound, false);
   assert.equal((await f.handler.handleNotification(notice({ data, sound: 'default' }))).shouldShowAlert, true);
+  assert.equal((await f.handler.handleNotification(notice({ data: { ...data, delivery: 'push' }, sound: 'default' }))).shouldShowAlert, false);
   f.user({ id: 'bob' });
   const other = await f.handler.handleNotification(notice({ dataString: JSON.stringify(data), sound: 'default' }));
   assert.equal(other.shouldShowAlert, false);

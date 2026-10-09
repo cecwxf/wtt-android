@@ -2,7 +2,7 @@ import { isTrustedAppUrl } from '../auth/native-web-session';
 
 export const NOTIFICATION_MESSAGE = 'WTT_NATIVE_NOTIFICATIONS';
 export type NotificationPreferences = { enabled: boolean; sound: boolean; preview: boolean };
-export type NotificationSettings = NotificationPreferences & { granted: boolean };
+export type NotificationSettings = NotificationPreferences & { granted: boolean; pushStatus?: 'off' | 'not_configured' | 'registered' | 'unavailable' };
 export type ChatNotice = { userId: string; messageId: string; topicId: string; agentId: string; title: string; body: string; focused: boolean };
 type Document = { nonce: string; generation: number };
 type Dependencies = {

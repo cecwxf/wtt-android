@@ -44,3 +44,4 @@ google-play-key.json
 
 # TypeScript
 *.tsbuildinfo
+GoogleService-Info.plist

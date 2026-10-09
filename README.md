@@ -329,3 +329,26 @@ See [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) for detailed store-by-store gui
 - **WTT Backend**: [github.com/cecwxf/wtt](https://github.com/cecwxf/wtt)
 - **WTT Web**: [github.com/cecwxf/wtt-web](https://github.com/cecwxf/wtt-web)
 - **API Docs**: https://www.waxbyte.com/docs
+## Background Message Push
+
+Message history and foreground chat still use the existing WTT WebView. Optional
+background notifications use Expo Push Service, with account-scoped native token
+registration and a durable backend outbox. Notifications carry a generic reminder
+and routing IDs only; reply previews apply to foreground local notifications.
+`registered` means registration succeeded, not that the OS displayed a message.
+
+Android requires the owned Firebase project's client configuration and FCM v1
+credentials configured for the existing Expo project. Do not commit credentials.
+For an authorized global build, set `WTT_FIREBASE_ANDROID_JSON` to the local
+`google-services.json` path and run `npx expo prebuild --platform android --no-install`
+before building. The configuration must match `com.waxbyte.wtt`; China builds
+require their own matching package configuration. Review generated native changes.
+Without this configuration the app can still chat and issue local notifications,
+but cannot claim working background push. iOS APNs additionally requires the
+corresponding Apple signing/push credentials; Simulator startup is not this test.
+
+Backend setup is documented in `wtt/deployment/README.md`. The service is disabled
+by default. After credentials are ready, verify actual background delivery, a
+notification tap to the correct Workspace, opt-out/logout and two-account isolation
+before enabling it for normal users. Android devices without Google services need
+a separate vendor push integration; this implementation does not claim to supply it.

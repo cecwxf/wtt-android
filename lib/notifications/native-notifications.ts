@@ -3,6 +3,7 @@ import * as FileSystem from 'expo-file-system';
 import { AppState, Platform } from 'react-native';
 import { useAuthStore } from '@/stores/auth';
 import type { ChatNotice, NotificationPreferences, NotificationSettings } from './protocol';
+import { observePush, pushStatus, syncPush } from './native-push';
 
 const defaults: NotificationPreferences = { enabled: false, sound: false, preview: false };
 const preferencesFile = `${FileSystem.documentDirectory}wtt-notification-preferences.json`;
@@ -42,7 +43,7 @@ export async function notificationSettings(userId: string, current: () => boolea
   const permissions = await Notifications.getPermissionsAsync();
   allowed(userId, current);
   const saved = value && typeof value.enabled === 'boolean' && typeof value.sound === 'boolean' && typeof value.preview === 'boolean' ? value : defaults;
-  return { enabled: saved.enabled, sound: saved.sound, preview: saved.preview, granted: permissions.granted };
+  return { enabled: saved.enabled, sound: saved.sound, preview: saved.preview, granted: permissions.granted, pushStatus: pushStatus(userId) };
 }
 
 export async function dismissAccountNotifications(userId?: string) {
@@ -74,7 +75,9 @@ export async function saveNotificationSettings(userId: string, value: Notificati
     } finally { await FileSystem.deleteAsync(temporary, { idempotent: true }).catch(() => {}); }
     if (!value.enabled) await dismissAccountNotifications(userId);
     allowed(userId, current);
-    return { ...value, granted: permissions.granted };
+    const background = await syncPush(value, true);
+    allowed(userId, current);
+    return { ...value, granted: permissions.granted, pushStatus: background };
   });
   writing = operation.catch(() => {});
   return operation;
@@ -83,6 +86,8 @@ export async function saveNotificationSettings(userId: string, value: Notificati
 export async function showChatNotification(value: ChatNotice, current: () => boolean) {
   const preferences = await notificationSettings(value.userId, current);
   if (!preferences.enabled || !preferences.granted || (AppState.currentState === 'active' && value.focused)) return false;
+  // The server owns background delivery when registered; the WebView path owns foreground alerts.
+  if (AppState.currentState !== 'active' && pushStatus(value.userId) === 'registered') return false;
   allowed(value.userId, current);
   const now = Date.now();
   for (const [key, time] of seen) if (now - time > 10 * 60 * 1000) seen.delete(key);
@@ -98,7 +103,7 @@ export async function showChatNotification(value: ChatNotice, current: () => boo
       title: preferences.preview ? value.title || 'WTT' : 'WTT',
       body: preferences.preview ? value.body : 'Agent 有新回复 / New agent reply',
       sound: preferences.sound ? 'default' : false,
-      data: { kind: 'wtt-chat', userId: value.userId, messageId: value.messageId, agentId: value.agentId, topicId: value.topicId },
+      data: { kind: 'wtt-chat', delivery: 'local', userId: value.userId, messageId: value.messageId, agentId: value.agentId, topicId: value.topicId },
     },
     trigger: Platform.OS === 'android' ? { channelId: preferences.sound ? 'wtt-chat-sound' : 'wtt-chat-silent' } : null,
   });
@@ -112,12 +117,14 @@ export async function showChatNotification(value: ChatNotice, current: () => boo
 Notifications.setNotificationHandler({
   handleNotification: async notice => {
     const data = notificationData(notice);
-    const visible = data.kind === 'wtt-chat' && currentUser() === data.userId;
+    const visible = data.kind === 'wtt-chat' && currentUser() === data.userId
+      && !(data.delivery === 'push' && AppState.currentState === 'active');
     return { shouldShowAlert: visible, shouldPlaySound: visible && Boolean(notice.request.content.sound), shouldSetBadge: false };
   },
 });
 
 export function observeChatNotifications(navigate: (agentId: string, topicId: string) => void) {
+  const stopPush = observePush(userId => notificationSettings(userId, () => currentUser() === userId));
   let opened = '';
   const open = (response: Notifications.NotificationResponse | null) => {
     if (!response || !owned(response.notification)) return;
@@ -144,5 +151,5 @@ export function observeChatNotifications(navigate: (agentId: string, topicId: st
       if (before) void dismissAccountNotifications(before).catch(() => {});
     }
   });
-  return () => { listener.remove(); offAccount(); };
+  return () => { listener.remove(); offAccount(); stopPush(); };
 }

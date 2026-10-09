@@ -1,4 +1,5 @@
 const appJson = require('./app.json');
+const fs = require('node:fs');
 
 module.exports = ({ config }) => {
   const base = appJson.expo || {};
@@ -7,6 +8,14 @@ module.exports = ({ config }) => {
   const envProjectId = (process.env.EAS_PROJECT_ID || '').trim();
   const fileProjectId = String(((base.extra || {}).eas || {}).projectId || '').trim();
   const resolvedProjectId = envProjectId || fileProjectId;
+  const firebaseFile = (process.env.WTT_FIREBASE_ANDROID_JSON || '').trim();
+  if (firebaseFile) {
+    const firebase = JSON.parse(fs.readFileSync(firebaseFile, 'utf8'));
+    const packageName = isChina ? 'com.waxbyte.wtt.cn' : 'com.waxbyte.wtt';
+    if (!firebase.client?.some(client => client.client_info?.android_client_info?.package_name === packageName)) {
+      throw new Error('Firebase Android configuration does not match this WTT package');
+    }
+  }
 
   return {
     ...base,
@@ -27,6 +36,7 @@ module.exports = ({ config }) => {
       ...(base.android || {}),
       ...(config?.android || {}),
       package: isChina ? 'com.waxbyte.wtt.cn' : 'com.waxbyte.wtt',
+      ...(firebaseFile ? { googleServicesFile: firebaseFile } : {}),
     },
     extra: {
       ...(base.extra || {}),
