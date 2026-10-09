@@ -102,6 +102,9 @@ Web accepts both v1 and v2 for legacy Agent files; project files require v2.
 - On 1.2.24, actual Workspace chat reached the local Mac Codex and returned
   `WTT_ANDROID_124_REAL_CHAT_PASS`. Execution completed. Force-stop/reopen and
   session switching retained this reply; the upgraded 1.2.25 also displayed it.
+- Final installed 1.2.25 initiated a new actual message and received
+  `WTT_ANDROID_125_REAL_CHAT_PASS`, with completed execution visible. This is
+  a fresh model round trip, not just viewing 1.2.24's saved reply.
 - Actual project file browsing and the self-contained HTML preview worked. Its
   counter changed from zero to one after a real tap.
 - Reproduced zero-percent downloads on 1.2.24. On final 1.2.25, downloading the
@@ -113,6 +116,10 @@ Web accepts both v1 and v2 for legacy Agent files; project files require v2.
 - Cancelling the actual 100 MiB project download displayed `Download cancelled`.
   Full large-file completion and checksum acceptance are recorded separately;
   cancellation alone does not prove complete transfer.
+- The bounded complete-download attempt reached 18 percent after approximately
+  five minutes. It was cancelled via UI, so full 100 MiB completion/performance
+  is not accepted. Large-file revisions use metadata, not repeated whole-file
+  hashing; the remaining transfer-performance diagnosis must not assume hashing.
 - Final APK: `build/android-workspace-1.2.25/wtt-1.2.25-arm64-internal.apk`,
   332626550 bytes, SHA-256
   `a7da02bc97220c86ec33d2e1767a8d93f0de4b9b5bafa6425e9a3464f61c2060`.
