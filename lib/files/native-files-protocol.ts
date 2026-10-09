@@ -1,8 +1,10 @@
 import { isTrustedAppUrl } from '../auth/native-web-session';
 
 export const NATIVE_FILES_MESSAGE = 'WTT_NATIVE_FILES';
-export type FileRequest = { requestId: string; path: string; filename: string } & (
-  { agentId: string; workspaceId?: never } | { workspaceId: string; agentId?: never }
+export type FileRequest = { requestId: string; filename: string } & (
+  { agentId: string; path: string; workspaceId?: never; knowledgeSourceId?: never }
+  | { workspaceId: string; path: string; agentId?: never; knowledgeSourceId?: never }
+  | { knowledgeSourceId: string; path?: never; agentId?: never; workspaceId?: never }
 );
 export type FileProgress = { loaded: number; total: number };
 type Document = { nonce: string; generation: number };
@@ -67,22 +69,29 @@ export class NativeFilesBridge {
     const workspaceId = typeof message.workspaceId === 'string' ? message.workspaceId : '';
     const hasAgent = message.agentId !== undefined;
     const hasWorkspace = message.workspaceId !== undefined;
-    const validTarget = hasAgent !== hasWorkspace && (hasAgent
+    const hasKnowledge = message.knowledgeSourceId !== undefined;
+    const knowledgeSourceId = typeof message.knowledgeSourceId === 'string' ? message.knowledgeSourceId : '';
+    const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+    const validTarget = [hasAgent, hasWorkspace, hasKnowledge].filter(Boolean).length === 1 && (hasKnowledge
+      ? uuid.test(knowledgeSourceId) : hasAgent
       ? /^agent-[a-f0-9]{12}$/.test(agentId)
-      : /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(workspaceId));
+      : uuid.test(workspaceId));
     const filePath = typeof message.path === 'string' ? message.path : '';
     const filename = typeof message.filename === 'string' ? message.filename : '';
-    if (!validTarget || !filePath || filePath.length > 4000
-      || /^[\\/]/.test(filePath) || /^[A-Za-z]:/.test(filePath) || filePath.includes('\0')
-      || filePath.split(/[\\/]/).includes('..') || !filename || filename.length > 255
+    const validPath = hasKnowledge ? message.path === undefined : Boolean(filePath) && filePath.length <= 4000
+      && !/^[\\/]/.test(filePath) && !/^[A-Za-z]:/.test(filePath) && !filePath.includes('\0')
+      && !filePath.split(/[\\/]/).includes('..');
+    if (!validTarget || !validPath
+      || !filename || filename.length > 255
       || filename === '.' || filename === '..' || /[\x00\\/]/.test(filename)) {
       this.emit(document, requestId, { ok: false, code: 'invalid_request' });
       return true;
     }
     this.pending.add(requestId);
     this.emit(document, requestId, { progress: { loaded: 0, total: 0 } });
-    const target = hasWorkspace ? { workspaceId } : { agentId };
-    void this.deps.download({ requestId, ...target, path: filePath, filename }, () => this.current(document), progress => {
+    const target: FileRequest = hasKnowledge ? { requestId, knowledgeSourceId, filename }
+      : hasWorkspace ? { requestId, workspaceId, path: filePath, filename } : { requestId, agentId, path: filePath, filename };
+    void this.deps.download(target, () => this.current(document), progress => {
       this.emit(document, requestId, { progress });
     }).then(() => this.emit(document, requestId, { ok: true }))
       .catch(error => this.emit(document, requestId, { ok: false, code: error instanceof Error && error.name === 'AbortError' ? 'cancelled' : 'download_failed' }))
@@ -98,7 +107,7 @@ export function nativeFilesScript(origin: string, nonce: string) {
     var nonce=${JSON.stringify(nonce)},origin=${JSON.stringify(origin)},pending=new Map(),disposed=false;
     function post(action,id,extra){if(disposed||window.top!==window||location.origin!==origin)return;
       window.ReactNativeWebView.postMessage(JSON.stringify(Object.assign({type:${JSON.stringify(NATIVE_FILES_MESSAGE)},nonce:nonce,action:action,requestId:id},extra)));}
-    window.__WTT_NATIVE_FILES__={version:2,nonce:nonce,
+    window.__WTT_NATIVE_FILES__={version:2,knowledgeFiles:true,nonce:nonce,
       download:function(args,onProgress){return new Promise(function(resolve,reject){
         if(disposed){reject(new Error('Document closed'));return;}
         if(pending.size){reject(new Error('File transfer busy'));return;}

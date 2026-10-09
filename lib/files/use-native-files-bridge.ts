@@ -39,7 +39,7 @@ export function useNativeFilesBridge(webView: RefObject<WebView | null>, origin:
     const userId = credentials.user?.id || credentials.user?.user_id;
     const ownerToken = credentials.token;
     if (!userId || !ownerToken || !FileSystem.cacheDirectory || active.current || sharing.current || new URL(WTT_API_URL).protocol !== 'https:') throw new Error('File download unavailable');
-    const targetId = request.workspaceId || request.agentId;
+    const targetId = request.knowledgeSourceId || request.workspaceId || request.agentId;
     if (!targetId) throw new Error('File download target unavailable');
     const operation: Active = { requestId: request.requestId, abort: new AbortController() };
     active.current = operation;
@@ -48,11 +48,11 @@ export function useNativeFilesBridge(webView: RefObject<WebView | null>, origin:
     const filename = Array.from(request.filename.replace(/[\x00-\x1f\\/:*?"<>|]/g, '_')).slice(0, 60).join('') || 'download';
     const directory = `${FileSystem.cacheDirectory}wtt-file-${Crypto.randomUUID()}/`;
     const uri = `${directory}${filename}`;
-    const resource = request.workspaceId
-      ? `workspaces/${encodeURIComponent(targetId)}`
-      : `hosts/agents/${encodeURIComponent(targetId)}`;
-    const base = `${WTT_API_URL.replace(/\/+$/, '')}/${resource}/workspace`;
-    const query = new URLSearchParams({ path: request.path });
+    const resource = request.knowledgeSourceId ? `kb/personal/sources/${encodeURIComponent(targetId)}`
+      : request.workspaceId ? `workspaces/${encodeURIComponent(targetId)}/workspace`
+      : `hosts/agents/${encodeURIComponent(targetId)}/workspace`;
+    const base = `${WTT_API_URL.replace(/\/+$/, '')}/${resource}`;
+    const query = request.knowledgeSourceId ? '' : `?${new URLSearchParams({ path: request.path! })}`;
     const deadline = setTimeout(() => cancel(request.requestId), 15 * 60 * 1000);
     let published = false;
     try {
@@ -61,14 +61,14 @@ export function useNativeFilesBridge(webView: RefObject<WebView | null>, origin:
       const metadataTimeout = setTimeout(() => operation.abort.abort(), 15000);
       let metadata;
       try {
-        const response = await fetch(`${base}/stat?${query}`, { headers: { Authorization: `Bearer ${ownerToken}` }, signal: operation.abort.signal, redirect: 'error' });
+        const response = await fetch(`${base}/stat${query}`, { headers: { Authorization: `Bearer ${ownerToken}` }, signal: operation.abort.signal, redirect: 'error' });
         if (!response.ok) throw new Error('Workspace metadata unavailable');
         metadata = await response.json();
       } finally { clearTimeout(metadataTimeout); }
       if (!Number.isSafeInteger(metadata.size) || metadata.size < 0 || metadata.size > MAX_BYTES || !isCurrent()) throw new Error('Invalid file size or account');
       await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
       let lastProgress = 0;
-      operation.task = FileSystem.createDownloadResumable(`${base}/content?${query}&download=true`, uri,
+      operation.task = FileSystem.createDownloadResumable(request.knowledgeSourceId ? `${base}/download` : `${base}/content${query}&download=true`, uri,
         { headers: { Authorization: `Bearer ${ownerToken}` } }, data => {
           if (!isCurrent() || data.totalBytesWritten > MAX_BYTES || data.totalBytesExpectedToWrite > MAX_BYTES) { cancel(request.requestId); return; }
           if (Date.now() - lastProgress < 250) return;

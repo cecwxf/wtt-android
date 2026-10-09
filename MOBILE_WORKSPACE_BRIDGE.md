@@ -1,6 +1,6 @@
 # Workspace Mobile Bridge
 
-Source version: 1.2.25, Android versionCode 37, iOS buildNumber 31.
+Source version: 1.2.26, Android versionCode 38, iOS buildNumber 32.
 The source default WebView entry is `/mobile/workspaces`. The physical Android
 test phone now runs the internal arm64 1.2.25 package; public links remain unchanged.
 
@@ -19,6 +19,17 @@ test phone now runs the internal arm64 1.2.25 package; public links remain uncha
   can open the canonical owned session. The underlying Topic protocol is unchanged.
 
 ## Downloads
+
+1.2.26 adds the explicit `knowledgeFiles: true` capability to the existing v2 bridge.
+Personal knowledge downloads accept `{ knowledgeSourceId, filename, requestId }`
+instead of a workspace/Agent target. Mixed targets, paths on knowledge requests
+and non-UUID source IDs are rejected. The native account token stays native;
+authenticated `/kb/personal/sources/:id/stat` and `/download` recheck ownership.
+Downloads use the same bounded disk, size-check, progress, cancellation and
+save/share flow as workspace files. Older native clients show an upgrade error
+instead of attempting an unsupported Blob navigation. Existing v1/v2 workspace
+and legacy Agent requests are unchanged. Actual installed-package results are
+recorded separately; compilation alone is not a full mobile pass.
 
 `WTT_NATIVE_FILES` v2 accepts exactly one target:
 

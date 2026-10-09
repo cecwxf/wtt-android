@@ -34,7 +34,7 @@ function fixture(download = async () => {}) {
 }
 
 test('actual injected browser bridge delivers Workspace and legacy Agent requests, progress and completion', async () => {
-  for (const target of [{ workspaceId }, { agentId: 'agent-123456abcdef' }]) {
+  for (const target of [{ workspaceId }, { agentId: 'agent-123456abcdef' }, { knowledgeSourceId: workspaceId }]) {
     const f = fixture(async (_request, current, progress) => {
       assert.equal(current(), true);
       progress({ loaded: 50, total: 100 });
@@ -47,10 +47,12 @@ test('actual injected browser bridge delivers Workspace and legacy Agent request
     runInContext(f.bridge.openDocument(url, nonce), context);
     assert.equal(window.__WTT_NATIVE_FILES__.version, 2);
     const progress = [];
-    await window.__WTT_NATIVE_FILES__.download({ requestId, ...target, path: 'README.md', filename: 'README.md' }, value => progress.push(value.loaded));
+    assert.equal(window.__WTT_NATIVE_FILES__.knowledgeFiles, true);
+    await window.__WTT_NATIVE_FILES__.download({ requestId, ...target, ...(target.knowledgeSourceId ? {} : { path: 'README.md' }), filename: 'README.md' }, value => progress.push(value.loaded));
     assert.equal(f.requests.length, 1);
     assert.equal(f.requests[0][0].workspaceId, target.workspaceId);
     assert.equal(f.requests[0][0].agentId, target.agentId);
+    assert.equal(f.requests[0][0].knowledgeSourceId, target.knowledgeSourceId);
     assert.deepEqual(progress, [0, 50, 100]);
     window.__WTT_NATIVE_FILES__.dispose();
   }
@@ -62,6 +64,10 @@ test('ambiguous targets, paths, foreign origins and stale nonces never invoke do
   for (const extra of [{ agentId: 'agent-123456abcdef' }, { workspaceId: null },
     { workspaceId: 'bad' }, { workspaceId: undefined }, { path: '../private' },
     { path: '/private' }, { filename: '../private' }, { nonce: 'wrong' }]) {
+    f.bridge.handle(f.message(extra), url);
+  }
+  for (const extra of [{ knowledgeSourceId: workspaceId }, { workspaceId: undefined, knowledgeSourceId: workspaceId },
+    { workspaceId: undefined, path: undefined, knowledgeSourceId: 'not-uuid' }]) {
     f.bridge.handle(f.message(extra), url);
   }
   f.bridge.handle(f.message({}), 'https://evil.test/mobile/workspaces');
@@ -78,12 +84,13 @@ test('one active transfer is retained, cancelled on invalidation and never compl
   f.bridge.handle(f.message({}), url);
   f.bridge.handle(f.message({ requestId: 'c'.repeat(32) }), url);
   assert.equal(f.requests.length, 1);
-  assert.match(f.scripts[0], /busy/);
+  assert.match(f.scripts[0], /progress/);
+  assert.match(f.scripts[1], /busy/);
   f.navigate(origin + '/mobile/workspaces/hosts');
   f.bridge.invalidate();
   assert.equal(f.requests[0][1](), false);
   finish();
   await tick();
-  assert.equal(f.scripts.length, 1);
+  assert.equal(f.scripts.length, 2);
   assert.ok(f.cancellations.length >= 2);
 });
