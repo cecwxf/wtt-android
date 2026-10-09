@@ -2,7 +2,8 @@
 
 Source version: 1.2.24, Android versionCode 36, iOS buildNumber 30.
 This is preparation for the Workspace-first client, not a published native release.
-The installed apps and default `/mobile/feed` entry are not switched in this batch.
+The source default WebView entry is now `/mobile/workspaces`; installed apps are not
+switched until the final native build and real-device acceptance.
 
 ## Routes
 
@@ -11,6 +12,12 @@ The installed apps and default `/mobile/feed` entry are not switched in this bat
 - The exact HTTPS application origin and two exact new page paths are allowed by the native session, files and notification bridges. Media, arbitrary descendants and preview pages are not allowed.
 - Login resume preserves only Workspace, session, Topic, Agent and source parameters. Credentials and unexpected fields are dropped.
 - Session reset retains the validated route. Web waits for the existing native cookie exchange before redirecting an unauthenticated user.
+- Notification taps open the Workspace portal with the existing Topic/Agent identifiers.
+  The owned project directory is loaded on demand to find a matching session beyond
+  the first page. Legacy Topics return to the existing mobile Feed after lookup.
+  A 404 feature gate retains legacy access; authentication/network failures stay visible.
+- A mismatched project/session/Topic link cannot mount chat or project tools; the user
+  can open the canonical owned session. The underlying Topic protocol is unchanged.
 
 ## Downloads
 
@@ -36,5 +43,9 @@ Web accepts both v1 and v2 for legacy Agent files; project files require v2.
 - Focused bridge tests execute the injected script through request/progress/completion,
   and reject mixed targets, unsafe paths, forged origins and stale documents.
 - Shared Web browser/Electron fixtures cover project file download selection and auth handoff.
+- Single Codex creation/send/history/files, paginated Topic restoration, mismatched links,
+  legacy Topic compatibility and native final-reply notification delivery are verified.
+  Progress events do not generate notifications. This tests the existing bridge,
+  not actual OS notification permission/delivery or background push.
 - These checks do not prove APK/iOS native compilation, installation, real system file sharing,
   physical-device performance or same-account real model round trips. Those gates remain pending.

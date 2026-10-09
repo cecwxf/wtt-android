@@ -29,7 +29,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (!ready) return;
     return observeChatNotifications((agentId, topicId) => router.push({
-      pathname: '/webview', params: { agent_id: agentId, topic_id: topicId },
+      pathname: '/workspaces', params: { agentId, topic: topicId },
     }));
   }, [ready]);
 

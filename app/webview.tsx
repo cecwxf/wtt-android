@@ -306,7 +306,14 @@ function mapNativePathToWebUrl(
   webBaseUrl: string,
 ): string | null {
   const path = String(pathname || '').replace(/^\/+|\/+$/g, '');
-  if (!path || path === 'webview') return null;
+  if (!path || path === 'webview') {
+    const topicId = routeParam(params, 'topic_id');
+    const taskId = routeParam(params, 'task_id');
+    const agentId = routeParam(params, 'agent_id');
+    return topicId || taskId || agentId ? appendMobileParams(webBaseUrl, '/mobile/feed', {
+      topic_id: topicId, task_id: taskId, agent_id: agentId,
+    }) : null;
+  }
 
   const parts = path.split('/').filter(Boolean);
   const route = (parts[0] || 'feed').toLowerCase();
@@ -440,10 +447,10 @@ export default function WttWebViewScreen() {
       ),
     [],
   );
-  const mobileFeedUrl = appendMobileParams(webBaseUrl, '/mobile/feed', {});
-  const [targetUrl, setTargetUrl] = useState(mobileFeedUrl);
-  const targetUrlRef = useRef(mobileFeedUrl);
-  const currentUrlRef = useRef(mobileFeedUrl);
+  const mobileWorkspaceUrl = appendMobileParams(webBaseUrl, '/mobile/workspaces', {});
+  const [targetUrl, setTargetUrl] = useState(mobileWorkspaceUrl);
+  const targetUrlRef = useRef(mobileWorkspaceUrl);
+  const currentUrlRef = useRef(mobileWorkspaceUrl);
   const allowedHost = useMemo(() => {
     try {
       return new URL(webBaseUrl).hostname.toLowerCase();
@@ -780,7 +787,7 @@ export default function WttWebViewScreen() {
   if (!mountedWithSession.current && !nativeToken) {
     return (
       <Redirect
-        href={{ pathname: '/(auth)/login', params: { returnTo: nativeRouteUrl || mobileFeedUrl } }}
+        href={{ pathname: '/(auth)/login', params: { returnTo: nativeRouteUrl || mobileWorkspaceUrl } }}
       />
     );
   }
