@@ -62,6 +62,19 @@ Web accepts both v1 and v2 for legacy Agent files; project files require v2.
   privacy consent screen. Consent was not accepted; login, Workspace chat and
   native file sharing are not proven by this startup check. The AVD was stopped;
   the physical phone remains on 1.2.23 and public download links are unchanged.
-- Local full Xcode is absent. The existing macOS CI workflow is building the same
-  app source in run `37867281726`; an iOS 1.2.24 artifact/startup is not yet proven.
-  Do not confuse this confirmed live build with the prior 1.2.23 simulator artifact.
+- Local full Xcode is absent. macOS CI run `37867281726` completed the real Release
+  build of the same app source at 01:17:47 UTC. The downloaded Simulator ZIP has
+  SHA-256 `2f472a21226eda791b0c886509f00adbadf61f2cbf78d733aae37cb375908e12`;
+  Info.plist identifies 1.2.24/30 and `com.waxbyte.wtt`. Its executable contains
+  both arm64 and x86_64. Fresh Simulator startup run `37869131646` uses this exact
+  artifact, without rebuilding, and passed on iPhone 15 / iOS 18.2. It remains
+  alive after 15 seconds without Metro; the actual screenshot shows the privacy
+  consent screen. Consent was not accepted. Login/chat and native file sharing
+  remain unverified; startup does not stand in for those separate gates.
+- Android CI no longer requests the removed SDK `tools` package. It explicitly
+  installs platform-tools, uses Node 22.23.3, generates the current Expo Router
+  declarations, and prepares native version/assets/speech models. The release job
+  uses the same universal build script as the local APK. ImageMagick is installed
+  explicitly on Linux rather than assuming the macOS `sips` tool is available.
+  Doc-only changes do not rebuild APKs. These workflow changes do not change the
+  app version/source or publish a new public download.
