@@ -184,6 +184,52 @@ test('real injected page script performs S256, cookie exchange and native acknow
   f.controller.invalidate();
 });
 
+test('cold bootstrap completes while WebView initially reports hidden; later background checks stay paused', async () => {
+  const events = new EventTarget(), docEvents = new EventTarget();
+  const requests = [];
+  let ready = 0;
+  let now = Date.now();
+  class Clock extends Date { static now() { return now; } }
+  const document = { visibilityState: 'hidden', addEventListener: docEvents.addEventListener.bind(docEvents),
+    removeEventListener: docEvents.removeEventListener.bind(docEvents) };
+  const window = { top: null, __WTT_NATIVE_SESSION_PENDING__: true,
+    location: { origin, pathname: '/mobile/workspaces', href: origin + '/mobile/workspaces' },
+    addEventListener: events.addEventListener.bind(events), removeEventListener: events.removeEventListener.bind(events),
+    dispatchEvent: events.dispatchEvent.bind(events),
+  };
+  window.top = window;
+  events.addEventListener('wtt-native-session-ready', () => ready++);
+  const context = createContext({ window, location: window.location,
+    document,
+    crypto: webcrypto, TextEncoder, URL, URLSearchParams, Uint8Array, Map, Date: Clock, Event, btoa,
+    AbortController, setTimeout, clearTimeout, localStorage: { removeItem() {} },
+    fetch: async endpoint => {
+      requests.push(endpoint);
+      if (endpoint === '/api/auth/session') return Response.json({ userId: 'alice',
+        mobileWebSessionId: grantId, accessToken: 'child-only' });
+      assert.equal(endpoint, '/api/wtt/auth/me');
+      return Response.json({ user_id: 'alice' });
+    },
+  });
+  try {
+    runInContext(nativeWebSessionScript({ origin, nonce, userId: 'alice', sessionId: grantId }), context);
+    await until(() => ready === 1);
+    assert.equal(window.__WTT_NATIVE_SESSION_PENDING__, false);
+    assert.deepEqual(requests, ['/api/auth/session', '/api/wtt/auth/me']);
+    now += 60001;
+    events.dispatchEvent(new Event('focus'));
+    docEvents.dispatchEvent(new Event('visibilitychange'));
+    await tick();
+    assert.equal(requests.length, 2, 'background lifecycle events must not trigger extra checks');
+    document.visibilityState = 'visible';
+    docEvents.dispatchEvent(new Event('visibilitychange'));
+    await until(() => ready === 2);
+    assert.equal(requests.length, 4, 'valid-session fast return must release the check lock');
+  } finally {
+    window.__WTT_NATIVE_SESSION__?.dispose();
+  }
+});
+
 test('injected protocol does not execute in an iframe or arbitrary same-origin preview', () => {
   for (const location of [{ origin, pathname: '/preview' }, { origin: 'https://evil.test', pathname: '/mobile/feed' }]) {
     runInNewContext(nativeWebSessionScript({ origin, nonce, userId: 'alice', sessionId: '' }), { window: { top: {} }, location });

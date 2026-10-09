@@ -271,9 +271,11 @@ export function nativeWebSessionScript(config: {
       requests.add(abort);
       try{var response=await fetch(url,Object.assign({credentials:'include',cache:'no-store',signal:abort.signal},options));
       if(!response.ok)throw new Error('Session unavailable');return await response.json();}finally{clearTimeout(timer);requests.delete(abort);}}
-    async function check(){
-      if(disposed||active||!config.userId||document.visibilityState==='hidden'||Date.now()-lastCheck<60000)return;
+    // Android can finish loading before its first visible event; bootstrap must release the auth gate.
+    async function check(bootstrap){
+      if(disposed||active||!config.userId||(!bootstrap&&document.visibilityState==='hidden')||Date.now()-lastCheck<60000)return;
       active=true;lastCheck=Date.now();var id;
+      try{
       try{
         var session=await json('/api/auth/session');
         if(disposed)return;
@@ -308,7 +310,7 @@ export function nativeWebSessionScript(config: {
         }
         location.replace(destination);
       }catch(e){if(id&&!disposed)post('result',id,{ok:false});}
-      finally{active=false;window.__WTT_NATIVE_SESSION_PENDING__=false;window.dispatchEvent(new Event('wtt-native-session-ready'));}
+      }finally{active=false;if(!disposed){window.__WTT_NATIVE_SESSION_PENDING__=false;window.dispatchEvent(new Event('wtt-native-session-ready'));}}
     }
     function resume(){void check();}
     var bridge={version:1,nonce:config.nonce,
@@ -321,6 +323,6 @@ export function nativeWebSessionScript(config: {
     };
     window.__WTT_NATIVE_SESSION__=bridge;
     window.addEventListener('focus',resume);window.addEventListener('pageshow',resume);document.addEventListener('visibilitychange',resume);
-    void check();
+    void check(true);
   })();true;`;
 }
