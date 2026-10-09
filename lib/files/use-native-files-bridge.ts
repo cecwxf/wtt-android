@@ -39,6 +39,8 @@ export function useNativeFilesBridge(webView: RefObject<WebView | null>, origin:
     const userId = credentials.user?.id || credentials.user?.user_id;
     const ownerToken = credentials.token;
     if (!userId || !ownerToken || !FileSystem.cacheDirectory || active.current || sharing.current || new URL(WTT_API_URL).protocol !== 'https:') throw new Error('File download unavailable');
+    const targetId = request.workspaceId || request.agentId;
+    if (!targetId) throw new Error('File download target unavailable');
     const operation: Active = { requestId: request.requestId, abort: new AbortController() };
     active.current = operation;
     const isCurrent = () => current() && mounted.current && active.current === operation && !operation.abort.signal.aborted
@@ -46,7 +48,10 @@ export function useNativeFilesBridge(webView: RefObject<WebView | null>, origin:
     const filename = Array.from(request.filename.replace(/[\x00-\x1f\\/:*?"<>|]/g, '_')).slice(0, 60).join('') || 'download';
     const directory = `${FileSystem.cacheDirectory}wtt-file-${Crypto.randomUUID()}/`;
     const uri = `${directory}${filename}`;
-    const base = `${WTT_API_URL.replace(/\/+$/, '')}/hosts/agents/${encodeURIComponent(request.agentId)}/workspace`;
+    const resource = request.workspaceId
+      ? `workspaces/${encodeURIComponent(targetId)}`
+      : `hosts/agents/${encodeURIComponent(targetId)}`;
+    const base = `${WTT_API_URL.replace(/\/+$/, '')}/${resource}/workspace`;
     const query = new URLSearchParams({ path: request.path });
     const deadline = setTimeout(() => cancel(request.requestId), 15 * 60 * 1000);
     let published = false;

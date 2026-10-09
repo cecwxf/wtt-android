@@ -28,7 +28,7 @@ import { useAuthStore } from '@/stores/auth';
 import { WTT_API_URL } from '@/lib/api/base-url';
 import { LaunchLink } from '@/lib/navigation/launch-link';
 import { authResumeUrl } from '@/lib/navigation/auth-entry';
-import { isTrustedAppUrl, NativeWebSession } from '@/lib/auth/native-web-session';
+import { isTrustedAppUrl, NativeWebSession, TRUSTED_APP_PATHS } from '@/lib/auth/native-web-session';
 import { useNativeFilesBridge } from '@/lib/files/use-native-files-bridge';
 import { NativeFileDownloadCard } from '@/components/NativeFileDownloadCard';
 import { NativeNotificationsBridge } from '@/lib/notifications/protocol';
@@ -181,7 +181,7 @@ function isAuthProviderUrl(url: string): boolean {
 
 function isMobileFeedUrl(url: string): boolean {
   try {
-    return new URL(url).pathname.replace(/\/+$/, '') === '/mobile/feed';
+    return ['/mobile/feed', '/mobile/workspaces'].includes(new URL(url).pathname.replace(/\/+$/, ''));
   } catch {
     return false;
   }
@@ -202,6 +202,8 @@ function mobileUrlForAllowedHostNavigation(url: string, webBaseUrl: string): str
     const pathname = parsed.pathname.replace(/\/+$/, '') || '/';
     if (
       pathname === '/mobile/feed' ||
+      pathname === '/mobile/workspaces' ||
+      pathname === '/mobile/workspaces/hosts' ||
       pathname === '/feed' ||
       pathname === '/mobile/settings' ||
       pathname === '/mobile/login' ||
@@ -314,6 +316,13 @@ function mapNativePathToWebUrl(
   if (route === 'settings' || (route === 'mobile' && subRoute === 'settings')) {
     return appendMobileParams(webBaseUrl, '/mobile/settings', {});
   }
+  if (route === 'workspaces' || (route === 'mobile' && subRoute === 'workspaces')) {
+    const hosts = route === 'workspaces' ? subRoute === 'hosts' : parts[2] === 'hosts';
+    return appendMobileParams(webBaseUrl, hosts ? '/mobile/workspaces/hosts' : '/mobile/workspaces', {
+      workspace: routeParam(params, 'workspace'), session: routeParam(params, 'session'),
+      topic: routeParam(params, 'topic'), agentId,
+    });
+  }
   if (route === 'topic') {
     return appendMobileParams(webBaseUrl, '/mobile/feed', {
       topic_id: parts[1] || routeParam(params, 'id') || routeParam(params, 'topic_id'),
@@ -361,6 +370,14 @@ function mapDeepLinkToWebUrl(rawUrl: string | null, webBaseUrl: string): string 
 
     if (route === 'mobile' && subRoute === 'settings') {
       return appendMobileParams(webBaseUrl, '/mobile/settings', {});
+    }
+    if (route === 'workspaces' || (route === 'mobile' && subRoute === 'workspaces')) {
+      const hosts = route === 'workspaces' ? subRoute === 'hosts' : parts[2] === 'hosts';
+      return appendMobileParams(webBaseUrl, hosts ? '/mobile/workspaces/hosts' : '/mobile/workspaces', {
+        workspace: parsed.searchParams.get('workspace') || undefined,
+        session: parsed.searchParams.get('session') || undefined,
+        topic: parsed.searchParams.get('topic') || undefined, agentId,
+      });
     }
     if (route === 'mobile' && subRoute === 'feed') {
       return appendMobileParams(webBaseUrl, '/mobile/feed', {
@@ -466,7 +483,7 @@ export default function WttWebViewScreen() {
   const injectedScript = useMemo(
     () => `(function(){
       if(window.top!==window||location.origin!==${JSON.stringify(allowedOrigin)})return;
-      if(!${JSON.stringify(['/mobile/feed', '/mobile/settings', '/mobile/login', '/login', '/feed', '/upgrade'])}.includes(location.pathname.replace(/\\/+$/, '')))return;
+      if(!${JSON.stringify(TRUSTED_APP_PATHS)}.includes(location.pathname.replace(/\\/+$/, '')))return;
       window.__WTT_NATIVE_SESSION_PENDING__=${Boolean(nativeToken)};
       try{localStorage.removeItem('__WTT_NATIVE_ACCESS_TOKEN__');}catch(e){}
       ${PREVENT_INITIAL_AUTOFOCUS_SCRIPT}\n${nativeSpeechCapabilityScript(
@@ -594,6 +611,8 @@ export default function WttWebViewScreen() {
         text: '继续',
         style: 'destructive',
         onPress: async () => {
+          const resume = authResumeUrl(currentUrlRef.current, allowedOrigin);
+          const callbackUrl = resume ? new URL(resume).pathname + new URL(resume).search : '/mobile/feed';
           sessionBridge.invalidate();
           await useAuthStore
             .getState()
@@ -606,7 +625,7 @@ export default function WttWebViewScreen() {
                 var csrf=await fetch('/api/auth/csrf',{credentials:'include'}).then(function(r){return r.json();});
                 await fetch('/api/auth/signout',{method:'POST',credentials:'include',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrfToken:csrf.csrfToken,json:'true'})});
               }catch(e){}
-              location.replace(${JSON.stringify(appendMobileParams(webBaseUrl, '/mobile/login', { callbackUrl: '/mobile/feed' }))});
+              location.replace(${JSON.stringify(appendMobileParams(webBaseUrl, '/mobile/login', { callbackUrl }))});
             })();
             true;
           `);

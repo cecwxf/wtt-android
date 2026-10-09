@@ -1,4 +1,8 @@
 export const NATIVE_SESSION_MESSAGE = 'WTT_NATIVE_WEB_SESSION';
+export const TRUSTED_APP_PATHS = [
+  '/mobile/feed', '/mobile/workspaces', '/mobile/workspaces/hosts',
+  '/mobile/settings', '/mobile/login', '/login', '/feed', '/upgrade',
+];
 
 export function isTrustedAppUrl(raw: string, origin: string): boolean {
   try {
@@ -8,7 +12,7 @@ export function isTrustedAppUrl(raw: string, origin: string): boolean {
       url.origin === origin &&
       !url.username &&
       !url.password &&
-      ['/mobile/feed', '/mobile/settings', '/mobile/login', '/login', '/feed', '/upgrade'].includes(
+      TRUSTED_APP_PATHS.includes(
         url.pathname.replace(/\/+$/, ''),
       )
     );
@@ -252,7 +256,7 @@ export function nativeWebSessionScript(config: {
 }): string {
   return `(function(){
     if(window.top!==window||location.origin!==${JSON.stringify(config.origin)})return;
-    if(!${JSON.stringify(['/mobile/feed', '/mobile/settings', '/mobile/login', '/login', '/feed', '/upgrade'])}.includes(location.pathname.replace(/\\/+$/, '')))return;
+    if(!${JSON.stringify(TRUSTED_APP_PATHS)}.includes(location.pathname.replace(/\\/+$/, '')))return;
     var previous=window.__WTT_NATIVE_SESSION__;if(previous&&previous.dispose)previous.dispose();
     var config=${JSON.stringify(config)}, disposed=false, pending=new Map(), active=false, lastCheck=0, expiryTimer, requests=new Set();
     try{localStorage.removeItem('__WTT_NATIVE_ACCESS_TOKEN__');}catch(e){}

@@ -43,9 +43,14 @@ function fixture(fetcher = async () => Response.json(grant)) {
 
 test('native bridge accepts exact HTTPS app origins and excludes media, preview, credentials and lookalikes', () => {
   assert.equal(isTrustedAppUrl(url, origin), true);
+  for (const path of ['/mobile/workspaces', '/mobile/workspaces/hosts']) {
+    assert.equal(isTrustedAppUrl(origin + path, origin), true);
+    assert.match(nativeWebSessionScript({ origin, nonce, userId: 'alice', sessionId: '' }), new RegExp(path));
+  }
   for (const raw of ['http://www.ultraspace.ai/mobile/feed', `${origin}:444/mobile/feed`,
     'https://www.ultraspace.ai.evil.test/mobile/feed', 'https://u:p@www.ultraspace.ai/mobile/feed',
-    `${origin}/api/wtt/media/test.html`, `${origin}/preview`, 'data:text/html,hello', 'bad']) {
+    `${origin}/api/wtt/media/test.html`, `${origin}/preview`, `${origin}/mobile/workspaces/preview`,
+    `${origin}/mobile/workspaces.evil`, 'data:text/html,hello', 'bad']) {
     assert.equal(isTrustedAppUrl(raw, origin), false, raw);
   }
 });
