@@ -1,9 +1,10 @@
 {
   "name": "wtt-mobile",
-  "version": "1.2.26",
+  "version": "1.2.27",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
+    "postinstall": "patch-package --error-on-fail",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -76,6 +77,7 @@
     "eslint-config-expo": "~8.0.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
+    "patch-package": "8.0.1",
     "prettier": "^3.4.2",
     "typescript": "^5.3.0"
   }

@@ -1,0 +1,46 @@
+diff --git a/node_modules/react-native-webview/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewModuleImpl.java b/node_modules/react-native-webview/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewModuleImpl.java
+index 951749c..67c42ed 100644
+--- a/node_modules/react-native-webview/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewModuleImpl.java
++++ b/node_modules/react-native-webview/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewModuleImpl.java
+@@ -268,7 +268,7 @@ public class RNCWebViewModuleImpl implements ActivityEventListener {
+ 
+         ArrayList<Parcelable> extraIntents = new ArrayList<>();
+         Intent photoIntent = null;
+-        if (!needsCameraPermission()) {
++        if ((!noAcceptTypesSet(acceptTypes) || isCaptureEnabled) && !needsCameraPermission()) {
+             if (acceptsImages(acceptTypes)) {
+                 photoIntent = getPhotoIntent();
+                 if (photoIntent != null) {
+@@ -288,9 +288,13 @@ public class RNCWebViewModuleImpl implements ActivityEventListener {
+             chooserIntent = photoIntent;
+         } else {
+             Intent fileSelectionIntent = getFileChooserIntent(acceptTypes, allowMultiple);
+-
+-            chooserIntent.putExtra(Intent.EXTRA_INTENT, fileSelectionIntent);
+-            chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, extraIntents.toArray(new Parcelable[]{}));
++            if (noAcceptTypesSet(acceptTypes)) {
++                // Generic uploads must reach document providers, not OEM photo-only choosers.
++                chooserIntent = fileSelectionIntent;
++            } else {
++                chooserIntent.putExtra(Intent.EXTRA_INTENT, fileSelectionIntent);
++                chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, extraIntents.toArray(new Parcelable[]{}));
++            }
+         }
+ 
+         if (chooserIntent != null) {
+@@ -404,10 +408,13 @@ public class RNCWebViewModuleImpl implements ActivityEventListener {
+     }
+ 
+     private Intent getFileChooserIntent(String[] acceptTypes, boolean allowMultiple) {
+-        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
++        boolean documents = noAcceptTypesSet(acceptTypes);
++        Intent intent = new Intent(documents ? Intent.ACTION_OPEN_DOCUMENT : Intent.ACTION_GET_CONTENT);
+         intent.addCategory(Intent.CATEGORY_OPENABLE);
+         intent.setType(MimeType.DEFAULT.value);
+-        intent.putExtra(Intent.EXTRA_MIME_TYPES, getAcceptedMimeType(acceptTypes));
++        if (!documents) {
++            intent.putExtra(Intent.EXTRA_MIME_TYPES, getAcceptedMimeType(acceptTypes));
++        }
+         intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, allowMultiple);
+         return intent;
+     }
