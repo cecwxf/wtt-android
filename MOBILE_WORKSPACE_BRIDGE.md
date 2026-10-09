@@ -49,3 +49,19 @@ Web accepts both v1 and v2 for legacy Agent files; project files require v2.
   not actual OS notification permission/delivery or background push.
 - These checks do not prove APK/iOS native compilation, installation, real system file sharing,
   physical-device performance or same-account real model round trips. Those gates remain pending.
+
+## Native Artifacts (2026-10-09)
+
+- App source `e116e5027d1f336a8bb8c0cb9dbaf349d22e4a44`: universal Android
+  Release APK built successfully, version 1.2.24/36, 448073267 bytes,
+  SHA-256 `7704a1183d242d8520c77a1323f49983ef08b710b91a0b522e5b2cff1f23ecc9`.
+  It uses the existing internal debug certificate, not a store release signature.
+  All four ABIs contain the core React Native/Hermes/JNI/C++ startup libraries.
+- The APK was installed on a new isolated API 35 arm64 Pixel 7 AVD. Cold launch
+  completed in 1715 ms, remained alive after 15 seconds, and displayed the real
+  privacy consent screen. Consent was not accepted; login, Workspace chat and
+  native file sharing are not proven by this startup check. The AVD was stopped;
+  the physical phone remains on 1.2.23 and public download links are unchanged.
+- Local full Xcode is absent. The existing macOS CI workflow is building the same
+  app source in run `37867281726`; an iOS 1.2.24 artifact/startup is not yet proven.
+  Do not confuse this confirmed live build with the prior 1.2.23 simulator artifact.
