@@ -47,6 +47,11 @@ jobs:
       - name: Generate native project
         run: npx expo prebuild --platform android --no-install
 
+      - name: Install native image processing dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
+
       - name: Prepare native version and assets
         run: |
           node scripts/sync-android-version.mjs
@@ -110,6 +115,11 @@ jobs:
 
       - name: Generate native project
         run: npx expo prebuild --platform android --no-install
+
+      - name: Install native image processing dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
 
       - name: Build release APK
         run: npm run build:android:universal
