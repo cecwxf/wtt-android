@@ -1,9 +1,8 @@
 # Workspace Mobile Bridge
 
-Source version: 1.2.24, Android versionCode 36, iOS buildNumber 30.
-This is preparation for the Workspace-first client, not a published native release.
-The source default WebView entry is now `/mobile/workspaces`; installed apps are not
-switched until the final native build and real-device acceptance.
+Source version: 1.2.25, Android versionCode 37, iOS buildNumber 31.
+The source default WebView entry is `/mobile/workspaces`. The physical Android
+test phone now runs the internal arm64 1.2.25 package; public links remain unchanged.
 
 ## Routes
 
@@ -32,6 +31,11 @@ switched until the final native build and real-device acceptance.
 Workspace downloads use `/workspaces/:id/workspace/stat` and `/content`.
 They never fall back to an Agent's default working directory.
 The existing owner-authenticated API validates project and root permissions.
+Android pushState emits a loading-start event without a loading-end event. Keep
+bridges for these same-document transitions between exact trusted application
+routes. Real document loads and untrusted routes still invalidate all bridges.
+Downloads acknowledge admission immediately; missing bridge acknowledgment fails
+after 10 seconds instead of leaving the page at zero percent indefinitely.
 No owner credential enters the injected script or request message.
 The native layer retains a 100 MiB limit, one active transfer, progress, cancellation,
 account/document invalidation, exact completed size and user-initiated sharing.
@@ -89,3 +93,28 @@ Web accepts both v1 and v2 for legacy Agent files; project files require v2.
   certificate. CI source `c65bfb3` differs from app source `e116e50` only in the
   build workflow and this document. No rebuild or public-link replacement was
   performed. Native startup/chat acceptance of this CI APK remains pending.
+
+## Physical Android Acceptance (2026-10-09)
+
+- The no-password RMX5062 was unlocked without changing its lock settings. The
+  existing signed-in data was preserved while installing 1.2.24/36 and then the
+  final internal 1.2.25/37 arm64 package.
+- On 1.2.24, actual Workspace chat reached the local Mac Codex and returned
+  `WTT_ANDROID_124_REAL_CHAT_PASS`. Execution completed. Force-stop/reopen and
+  session switching retained this reply; the upgraded 1.2.25 also displayed it.
+- Actual project file browsing and the self-contained HTML preview worked. Its
+  counter changed from zero to one after a real tap.
+- Reproduced zero-percent downloads on 1.2.24. On final 1.2.25, downloading the
+  30-byte `acceptance-result.txt` completed and opened the Android system share
+  sheet. No file was transmitted to an external application.
+- Uploaded only synthetic `wtt-android-125-upload.txt` through the system document
+  picker. The 35-byte file appeared in the project list, and `cmp` confirmed the
+  authorized Mac project file exactly matches the synthetic input.
+- Cancelling the actual 100 MiB project download displayed `Download cancelled`.
+  Full large-file completion and checksum acceptance are recorded separately;
+  cancellation alone does not prove complete transfer.
+- Final APK: `build/android-workspace-1.2.25/wtt-1.2.25-arm64-internal.apk`,
+  332626550 bytes, SHA-256
+  `a7da02bc97220c86ec33d2e1767a8d93f0de4b9b5bafa6425e9a3464f61c2060`.
+  Incremental native Release build passed. This is an internal arm64 package,
+  not the universal/store release or an iOS full-flow acceptance.

@@ -51,7 +51,7 @@ test('actual injected browser bridge delivers Workspace and legacy Agent request
     assert.equal(f.requests.length, 1);
     assert.equal(f.requests[0][0].workspaceId, target.workspaceId);
     assert.equal(f.requests[0][0].agentId, target.agentId);
-    assert.deepEqual(progress, [50, 100]);
+    assert.deepEqual(progress, [0, 50, 100]);
     window.__WTT_NATIVE_FILES__.dispose();
   }
 });

@@ -814,7 +814,15 @@ export default function WttWebViewScreen() {
         allowsBackForwardNavigationGestures
         pullToRefreshEnabled={Platform.OS === 'android'}
         onLoadStart={(event) => {
+          const previousUrl = currentUrlRef.current;
           currentUrlRef.current = event.nativeEvent.url;
+          // Android also emits this event for pushState, without a matching load-end.
+          if (Platform.OS === 'android' && event.nativeEvent.loading === false
+            && isTrustedAppUrl(previousUrl, allowedOrigin)
+            && isTrustedAppUrl(event.nativeEvent.url, allowedOrigin)) {
+            setLoading(false);
+            return;
+          }
           sessionBridge.invalidate();
           nativeFiles.bridge.invalidate();
           notificationBridge.invalidate();

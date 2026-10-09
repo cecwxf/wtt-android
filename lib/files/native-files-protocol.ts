@@ -80,6 +80,7 @@ export class NativeFilesBridge {
       return true;
     }
     this.pending.add(requestId);
+    this.emit(document, requestId, { progress: { loaded: 0, total: 0 } });
     const target = hasWorkspace ? { workspaceId } : { agentId };
     void this.deps.download({ requestId, ...target, path: filePath, filename }, () => this.current(document), progress => {
       this.emit(document, requestId, { progress });
@@ -101,18 +102,20 @@ export function nativeFilesScript(origin: string, nonce: string) {
       download:function(args,onProgress){return new Promise(function(resolve,reject){
         if(disposed){reject(new Error('Document closed'));return;}
         if(pending.size){reject(new Error('File transfer busy'));return;}
-        var timer=setTimeout(function(){post('cancel',args.requestId);pending.delete(args.requestId);reject(new Error('File transfer timeout'));},900000);
-        pending.set(args.requestId,{resolve:resolve,reject:reject,timer:timer,progress:onProgress});post('download',args.requestId,args);
+        var acknowledgement=setTimeout(function(){post('cancel',args.requestId);clearTimeout(timer);pending.delete(args.requestId);reject(new Error('File bridge unavailable; reload and retry'));},10000);
+        var timer=setTimeout(function(){post('cancel',args.requestId);clearTimeout(acknowledgement);pending.delete(args.requestId);reject(new Error('File transfer timeout'));},900000);
+        pending.set(args.requestId,{resolve:resolve,reject:reject,timer:timer,acknowledgement:acknowledgement,progress:onProgress});post('download',args.requestId,args);
       });},
-      cancel:function(id){post('cancel',id);var item=pending.get(id);if(item){clearTimeout(item.timer);pending.delete(id);item.reject(new Error('File transfer cancelled'));}},
+      cancel:function(id){post('cancel',id);var item=pending.get(id);if(item){clearTimeout(item.timer);clearTimeout(item.acknowledgement);pending.delete(id);item.reject(new Error('File transfer cancelled'));}},
       receive:function(id,result){var item=pending.get(id);if(!item||disposed)return;
+        clearTimeout(item.acknowledgement);
         if(result.progress){if(item.progress)item.progress(result.progress);return;}
         pending.delete(id);clearTimeout(item.timer);if(result.ok)item.resolve();else {
           var error=new Error(result.code==='cancelled'?'File transfer cancelled':'Native file download failed');
           if(result.code==='cancelled')error.name='AbortError';item.reject(error);
         }
       },
-      dispose:function(){disposed=true;pending.forEach(function(item){clearTimeout(item.timer);item.reject(new Error('Document closed'));});pending.clear();}
+      dispose:function(){disposed=true;pending.forEach(function(item){clearTimeout(item.timer);clearTimeout(item.acknowledgement);item.reject(new Error('Document closed'));});pending.clear();}
     };
   })();true;`;
 }
