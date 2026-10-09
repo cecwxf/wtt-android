@@ -3,8 +3,10 @@ name: Build APK
 on:
   push:
     branches: [main]
+    paths-ignore: ['**/*.md']
   pull_request:
     branches: [main]
+    paths-ignore: ['**/*.md']
   workflow_dispatch:
 
 jobs:
@@ -20,7 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.23.3
           cache: npm
 
       - name: Setup Java
@@ -31,15 +33,25 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install dependencies
         run: npm ci
 
       - name: TypeScript check
-        run: npx tsc --noEmit
+        run: |
+          EXPO_ROUTER_APP_ROOT="$PWD/app" node -e "require('fs').mkdirSync('.expo/types', { recursive: true }); require('expo-router/build/typed-routes').regenerateDeclarations('.expo/types');"
+          npm run typecheck
 
       - name: Generate native project
-        run: npx expo prebuild --platform android --clean
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Prepare native version and assets
+        run: |
+          node scripts/sync-android-version.mjs
+          node scripts/sync-android-assets.mjs
+          node scripts/prepare-bundled-speech-models.mjs
 
       - name: Enable JS bundling in debug build
         run: |
@@ -79,7 +91,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22.23.3
           cache: npm
 
       - name: Setup Java
@@ -90,22 +102,23 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install dependencies
         run: npm ci
 
       - name: Generate native project
-        run: npx expo prebuild --platform android --clean
+        run: npx expo prebuild --platform android --no-install
 
       - name: Build release APK
-        working-directory: android
-        run: ./gradlew assembleRelease --no-daemon
+        run: npm run build:android:universal
 
       - name: Rename release APK
         run: |
           VERSION=$(node -p "require('./app.json').expo.version")
           SHORT_SHA=${GITHUB_SHA::7}
-          APK_SRC=$(find android/app/build/outputs/apk/release -name "*.apk" | head -1)
+          APK_SRC=android/app/build/outputs/apk/release/app-release.apk
           cp "$APK_SRC" "android/app/build/outputs/apk/release/wtt-${VERSION}-${SHORT_SHA}-release.apk"
 
       - name: Upload release APK
