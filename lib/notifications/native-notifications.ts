@@ -9,7 +9,19 @@ const preferencesFile = `${FileSystem.documentDirectory}wtt-notification-prefere
 const seen = new Map<string, number>();
 let writing: Promise<unknown> = Promise.resolve();
 const currentUser = () => useAuthStore.getState().user?.id || useAuthStore.getState().user?.user_id || null;
-const owned = (notice: Notifications.Notification) => notice.request.content.data?.kind === 'wtt-chat';
+function notificationData(notice: Notifications.Notification): Record<string, unknown> {
+  const content = notice.request.content as Notifications.NotificationContent & { dataString?: unknown };
+  if (content.data && typeof content.data === 'object' && !Array.isArray(content.data)) return content.data;
+  // Expo 0.29 normalizes Android dataString for listeners, but not its presentation handler.
+  if (typeof content.dataString === 'string' && content.dataString.length <= 8192) {
+    try {
+      const value = JSON.parse(content.dataString);
+      if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+    } catch {}
+  }
+  return {};
+}
+const owned = (notice: Notifications.Notification) => notificationData(notice).kind === 'wtt-chat';
 const allowed = (userId: string, current: () => boolean) => {
   if (!current() || currentUser() !== userId || !useAuthStore.getState().token) throw new Error('Notification account changed');
 };
@@ -98,11 +110,11 @@ export async function showChatNotification(value: ChatNotice, current: () => boo
 }
 
 Notifications.setNotificationHandler({
-  handleNotification: async notice => ({
-    shouldShowAlert: owned(notice) && currentUser() === notice.request.content.data?.userId,
-    shouldPlaySound: Boolean(notice.request.content.sound),
-    shouldSetBadge: false,
-  }),
+  handleNotification: async notice => {
+    const data = notificationData(notice);
+    const visible = data.kind === 'wtt-chat' && currentUser() === data.userId;
+    return { shouldShowAlert: visible, shouldPlaySound: visible && Boolean(notice.request.content.sound), shouldSetBadge: false };
+  },
 });
 
 export function observeChatNotifications(navigate: (agentId: string, topicId: string) => void) {
