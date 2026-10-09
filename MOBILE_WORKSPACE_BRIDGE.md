@@ -78,3 +78,14 @@ Web accepts both v1 and v2 for legacy Agent files; project files require v2.
   explicitly on Linux rather than assuming the macOS `sips` tool is available.
   Doc-only changes do not rebuild APKs. These workflow changes do not change the
   app version/source or publish a new public download.
+- The completed CI Release APK from run `37869248749` is now downloaded and
+  verified, not just reported as a successful job. Artifact `11590542744` has
+  ZIP SHA-256 `d826d5ee722ef85bcc034749ea76b8ce80a48581fce6aef8201066d47ec70c9b`.
+  The APK is `build/android-ci-1.2.24/extracted/wtt-1.2.24-c65bfb3-release.apk`,
+  449064707 bytes, SHA-256
+  `8a9cd535ebf91439e3dc5aad04ab3da2266cc23114e8f9bd424642ff7e568ec2`.
+  Package/version/ABIs/embedded bundle and v2 signature are verified. The
+  certificate matches the existing local internal-test key, not a store release
+  certificate. CI source `c65bfb3` differs from app source `e116e50` only in the
+  build workflow and this document. No rebuild or public-link replacement was
+  performed. Native startup/chat acceptance of this CI APK remains pending.
