@@ -4,6 +4,24 @@ Source version: 1.2.26, Android versionCode 38, iOS buildNumber 32.
 The source default WebView entry is `/mobile/workspaces`. The physical Android
 test phone now runs the internal arm64 1.2.26/38 package; public links remain unchanged.
 
+## Latest Actual Acceptance (2026-10-09)
+
+- iOS 1.2.26/32 Simulator Release build run `37892093756` succeeded from
+  source `072672efefac1617f1ce5fc3989f2ed4342f71bb`. Downloaded ZIP: 34935914
+  bytes, SHA-256 `13b1dced0870fdf86f087657813af3e38c51119f4cb03abd7ae573938c836e19`.
+  The app executable includes arm64 and x86_64.
+- Run `37893792106` installed that same artifact on iPhone 15 / iOS 18.2,
+  launched Release without Metro and confirmed it alive after 15 seconds.
+  Screenshot remains at the unaccepted privacy/user-agreement gate.
+  This verifies startup, not authenticated chat, file transfer or notifications.
+- Shared production Web `fca0bb8` and desktop Connector 0.2.148 add on-demand
+  project Skill menus through the existing authorized Workspace channel.
+  The installed Android 1.2.26 package displayed `/wtt-acceptance-check`, selected
+  and sent it once. The real Mac Codex read its synthetic SKILL.md and returned
+  `WTT_SKILL_CONTEXT_CEDAR_903_PASS`; the formal result and completion appeared
+  on Android and Mac. No native mobile source change or APK rebuild was needed.
+
+
 ## Routes
 
 - `/workspaces` and `/workspaces/hosts` reuse the existing native WebView screen.
